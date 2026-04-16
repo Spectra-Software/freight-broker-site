@@ -27,36 +27,46 @@ const handler = NextAuth({
       return true;
     },
 
-    // 🔑 JWT (source of truth for role)
-    async jwt({ token, user }) {
-      const email = token.email || user?.email;
+    // 🔑 JWT — SINGLE SOURCE OF TRUTH FOR ROLE
+    async jwt({ token }) {
+      if (!token.email) return token;
 
-      if (email) {
-        const dbUser = await prisma.user.findUnique({
-          where: { email },
-        });
+      const dbUser = await prisma.user.findUnique({
+        where: { email: token.email },
+      });
 
-        token.role = dbUser?.role ?? "USER";
+      if (dbUser) {
+        token.role = dbUser.role;
+        token.id = dbUser.id;
+      } else {
+        token.role = "USER";
       }
 
       return token;
     },
 
-    // 📦 SESSION (frontend sees this)
+    // 📦 SESSION — WHAT FRONTEND USES
     async session({ session, token }) {
-      if (session.user?.email) {
-        const app = await prisma.application.findFirst({
-          where: { email: session.user.email },
-          orderBy: { createdAt: "desc" },
-        });
+      if (!session.user) return session;
 
-        session.user = {
-          ...session.user,
-          role: (token.role as "USER" | "ADMIN") ?? "USER",
-          status: app?.status ?? "NONE",
-          allowed: app?.status === "APPROVED",
-        };
-      }
+      const app = await prisma.application.findFirst({
+        where: { email: session.user.email! },
+        orderBy: { createdAt: "desc" },
+      });
+
+      session.user = {
+        ...session.user,
+
+        // 🔐 secure role from DB via JWT
+        role: token.role as "USER" | "ADMIN",
+
+        // 🧾 application info
+        status: app?.status ?? "NONE",
+        allowed: app?.status === "APPROVED",
+
+        // optional but useful
+        id: token.id as string,
+      };
 
       return session;
     },
