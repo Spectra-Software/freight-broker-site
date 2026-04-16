@@ -1,26 +1,34 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* 🌌 Background animation blobs */
+@keyframes blob1 {
+  0% { transform: translate(0px, 0px) scale(1); }
+  50% { transform: translate(80px, 60px) scale(1.1); }
+  100% { transform: translate(0px, 0px) scale(1); }
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@keyframes blob2 {
+  0% { transform: translate(0px, 0px) scale(1); }
+  50% { transform: translate(-60px, -80px) scale(1.15); }
+  100% { transform: translate(0px, 0px) scale(1); }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes blob3 {
+  0% { transform: translate(0px, 0px) scale(1); }
+  50% { transform: translate(40px, -50px) scale(1.05); }
+  100% { transform: translate(0px, 0px) scale(1); }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.animate-blob1 {
+  animation: blob1 12s ease-in-out infinite;
+}
+
+.animate-blob2 {
+  animation: blob2 14s ease-in-out infinite;
+}
+
+.animate-blob3 {
+  animation: blob3 16s ease-in-out infinite;
 }
