@@ -15,7 +15,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
 
-  // 🔐 AUTH GUARD (NO API CALLS)
+  // 🔐 AUTH + ACCESS GUARD
   useEffect(() => {
     if (status === "loading") return;
 
@@ -24,14 +24,14 @@ export default function DashboardLayout({
       return;
     }
 
-    // optional: pending approval gate
-    if (session.user.role === "PENDING") {
+    // 🚫 not approved → send to pending page
+    if (!session.user.allowed) {
       router.replace("/pending");
       return;
     }
   }, [session, status, router]);
 
-  // 🔄 LOADING STATE (prevents UI flash)
+  // 🔄 LOADING STATE
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
