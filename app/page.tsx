@@ -7,6 +7,24 @@ import { motion } from "framer-motion";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import ApplicationModal from "@/components/ApplicationModal";
 
+function FadeIn({
+  children,
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export default function Home() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -17,113 +35,102 @@ export default function Home() {
   }, [session, router]);
 
   return (
-    <main className="relative min-h-screen text-white bg-[#070A12] overflow-hidden">
+    <main className="relative min-h-screen text-white overflow-hidden bg-[#05060A]">
 
       <AnimatedBackground />
 
-      {/* NAV */}
-      <nav className="relative z-10 flex justify-between items-center px-8 py-5 border-b border-white/10 bg-[#0B0F1A]/70 backdrop-blur-xl">
-        <h1 className="text-lg font-semibold tracking-wide text-white">
+      {/* NAVBAR */}
+      <nav className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-8 py-4 border-b border-white/10 bg-black/30 backdrop-blur-xl">
+        <h1 className="text-sm font-medium tracking-wide text-white/80">
           Broker Buddy
         </h1>
 
         <button
           onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-          className="px-4 py-2 rounded-lg bg-white text-black hover:bg-gray-200 transition font-medium text-sm"
+          className="px-4 py-2 rounded-md bg-white text-black text-sm font-medium hover:bg-white/90 transition"
         >
-          Sign in
+          Sign In
         </button>
       </nav>
 
       {/* HERO */}
-      <section className="relative z-10 text-center px-6 pt-28 pb-20 max-w-4xl mx-auto">
+      <section className="max-w-6xl mx-auto px-8 pt-44 pb-28">
+        <FadeIn>
+          <h1 className="text-5xl md:text-7xl font-light tracking-tight leading-[1.05]">
+            Freight brokerage<br />
+            <span className="text-white/60">powered by automation</span>
+          </h1>
+        </FadeIn>
 
-        <motion.h1
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-4xl md:text-6xl font-semibold leading-tight tracking-tight"
-        >
-          Freight Brokerage<br />
-          <span className="text-blue-400">built for speed</span>
-        </motion.h1>
+        <FadeIn delay={0.1}>
+          <p className="mt-8 text-lg text-white/50 max-w-xl leading-relaxed">
+            Automate cold outreach, analyze carriers, track fuel prices, and scale your brokerage with intelligent workflows.
+          </p>
+        </FadeIn>
 
-        <p className="mt-6 text-gray-400 text-base md:text-lg max-w-2xl mx-auto">
-          AI-powered tools for brokers — automate outreach, analyze carriers, and optimize fuel decisions in one system.
-        </p>
+        <FadeIn delay={0.2}>
+          <div className="mt-10 flex gap-4">
+            <button
+              onClick={() => setOpen(true)}
+              className="px-6 py-3 bg-white text-black text-sm rounded-md hover:bg-white/90 transition"
+            >
+              Request Access
+            </button>
 
-        <div className="mt-8 flex justify-center gap-4">
-
-          <button
-            onClick={() => setOpen(true)}
-            className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 transition font-medium text-sm shadow-lg shadow-blue-600/20"
-          >
-            Request Access
-          </button>
-
-          <button
-            className="px-6 py-3 rounded-lg border border-white/10 hover:bg-white/5 transition text-sm text-gray-300"
-          >
-            Learn More
-          </button>
-        </div>
-
-        {/* subtle trust line */}
-        <p className="mt-6 text-xs text-gray-500">
-          Built for independent brokers and small fleets
-        </p>
+            <button className="px-6 py-3 text-sm text-white/60 hover:text-white transition">
+              Learn more →
+            </button>
+          </div>
+        </FadeIn>
       </section>
 
       {/* FEATURES */}
-      <section className="relative z-10 grid md:grid-cols-3 gap-6 px-8 max-w-6xl mx-auto pb-20">
+      <section className="max-w-6xl mx-auto px-8 pb-28 border-t border-white/10 pt-20">
+        <div className="space-y-12">
 
-        {[
-          {
-            title: "AI Cold Outreach",
-            desc: "Generate high-converting carrier emails in seconds."
-          },
-          {
-            title: "Carrier Intelligence",
-            desc: "Search, evaluate, and track carriers efficiently."
-          },
-          {
-            title: "Fuel Analytics",
-            desc: "Monitor pricing trends and reduce operational costs."
-          }
-        ].map((f, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="p-6 rounded-xl border border-white/10 bg-[#0B0F1A] hover:border-blue-500/30 transition"
-          >
-            <h3 className="text-sm font-semibold text-blue-400 mb-2">
-              {f.title}
-            </h3>
-            <p className="text-sm text-gray-400">
-              {f.desc}
-            </p>
-          </motion.div>
-        ))}
+          {[
+            ["AI Email Generator", "Generate high-converting carrier outreach emails instantly."],
+            ["Carrier Intelligence", "Analyze carriers and improve lane profitability decisions."],
+            ["Fuel Analytics", "Track fuel pricing trends and optimize cost timing."]
+          ].map(([title, desc], i) => (
+            <FadeIn key={i} delay={i * 0.1}>
+              <div className="flex flex-col md:flex-row md:justify-between gap-3 md:gap-12">
+                <h3 className="text-white/80 text-base font-medium md:w-1/3">
+                  {title}
+                </h3>
+
+                <p className="text-white/40 md:w-2/3 leading-relaxed">
+                  {desc}
+                </p>
+              </div>
+            </FadeIn>
+          ))}
+
+        </div>
       </section>
 
-      {/* CTA SECTION */}
-      <section className="relative z-10 text-center px-6 py-20 border-t border-white/10 bg-[#0B0F1A]/40">
+      {/* CTA */}
+      <section className="border-t border-white/10 py-28 text-center px-8">
+        <FadeIn>
+          <h2 className="text-3xl md:text-4xl font-light">
+            Built for modern freight brokers
+          </h2>
+        </FadeIn>
 
-        <h2 className="text-2xl md:text-3xl font-semibold">
-          Start scaling your brokerage smarter
-        </h2>
+        <FadeIn delay={0.1}>
+          <p className="text-white/40 mt-4 max-w-xl mx-auto">
+            Replace manual workflows with automation-driven tools that scale your brokerage.
+          </p>
+        </FadeIn>
 
-        <p className="mt-3 text-gray-400 text-sm">
-          Join brokers using automation instead of manual work.
-        </p>
-
-        <button
-          onClick={() => setOpen(true)}
-          className="mt-6 px-7 py-3 rounded-lg bg-white text-black hover:bg-gray-200 transition font-medium text-sm"
-        >
-          Get Started
-        </button>
+        <FadeIn delay={0.2}>
+          <button
+            onClick={() => setOpen(true)}
+            className="mt-10 px-6 py-3 bg-white text-black rounded-md text-sm hover:bg-white/90 transition"
+          >
+            Get Started
+          </button>
+        </FadeIn>
       </section>
 
       {/* MODAL */}
