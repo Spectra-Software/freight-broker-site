@@ -3,22 +3,25 @@ import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { status } = await req.json();
+  try {
+    const { id } = await params;
 
-  const app = await prisma.application.update({
-    where: { id: params.id },
-    data: { status },
-  });
+    const body = await req.json();
 
-  // 🔥 If approved → link to user + grant access
-  if (status === "APPROVED") {
-    await prisma.user.updateMany({
-      where: { email: app.email },
-      data: {},
+    const updated = await prisma.application.update({
+      where: { id },
+      data: body,
     });
-  }
 
-  return NextResponse.json(app);
+    return NextResponse.json(updated);
+  } catch (err) {
+    console.error(err);
+
+    return NextResponse.json(
+      { error: "Failed to update application" },
+      { status: 500 }
+    );
+  }
 }
