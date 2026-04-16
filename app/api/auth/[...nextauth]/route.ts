@@ -13,14 +13,13 @@ const handler = NextAuth({
   callbacks: {
     // 🔐 CREATE USER ON FIRST LOGIN
     async signIn({ user }) {
-      const email = user.email;
-      if (!email) return false;
+      if (!user.email) return false;
 
       await prisma.user.upsert({
-        where: { email },
+        where: { email: user.email },
         update: {},
         create: {
-          email,
+          email: user.email,
           role: "USER",
         },
       });
@@ -28,11 +27,13 @@ const handler = NextAuth({
       return true;
     },
 
-    // 🔑 JWT (THIS IS REQUIRED FOR ROLE TO PERSIST)
+    // 🔑 JWT (source of truth for role)
     async jwt({ token, user }) {
-      if (user?.email) {
+      const email = token.email || user?.email;
+
+      if (email) {
         const dbUser = await prisma.user.findUnique({
-          where: { email: user.email },
+          where: { email },
         });
 
         token.role = dbUser?.role ?? "USER";
@@ -41,33 +42,23 @@ const handler = NextAuth({
       return token;
     },
 
-    // 📦 SESSION (WHAT YOUR FRONTEND USES)
+    // 📦 SESSION (frontend sees this)
     async session({ session, token }) {
-      const email = session.user?.email;
+      if (session.user?.email) {
+        const app = await prisma.application.findFirst({
+          where: { email: session.user.email },
+          orderBy: { createdAt: "desc" },
+        });
 
-      if (!email) return session;
-
-      // get latest application
-      const app = await prisma.application.findFirst({
-        where: { email },
-        orderBy: { createdAt: "desc" },
-      });
-
-      return {
-        ...session,
-        user: {
+        session.user = {
           ...session.user,
-
-          // 🔐 admin role
-          role: token.role as string,
-
-          // 📄 application status
+          role: (token.role as "USER" | "ADMIN") ?? "USER",
           status: app?.status ?? "NONE",
-
-          // ✅ approved access flag
           allowed: app?.status === "APPROVED",
-        },
-      };
+        };
+      }
+
+      return session;
     },
   },
 });

@@ -11,28 +11,28 @@ export default function AdminPage() {
   const [apps, setApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🔐 ADMIN GUARD (STEP 4)
   useEffect(() => {
     if (status === "loading") return;
+
+    const role = session?.user?.role;
 
     if (!session?.user?.email) {
       router.replace("/");
       return;
     }
 
-    if (session.user.role !== "ADMIN") {
+    if (role !== "ADMIN") {
       router.replace("/dashboard");
       return;
     }
 
     loadApplications();
-  }, [session, status]);
+  }, [session, status, router]);
 
   const loadApplications = async () => {
     try {
       const res = await fetch("/api/applications");
       const data = await res.json();
-
       setApps(data);
     } catch (err) {
       console.error(err);
@@ -85,7 +85,6 @@ export default function AdminPage() {
 
             <p className="text-sm text-gray-300">{app.email}</p>
 
-            {/* STEP 5 (you asked earlier) */}
             <p className="text-sm text-yellow-400">
               Status: {app.status}
             </p>
