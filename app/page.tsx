@@ -17,91 +17,110 @@ export default function Home() {
   }, [session, router]);
 
   return (
-    <main className="relative min-h-screen text-white bg-gradient-to-br from-slate-950 via-slate-900 to-black overflow-hidden">
+    <main className="relative min-h-screen text-white bg-[#070A12] overflow-hidden">
 
       <AnimatedBackground />
 
-      {/* NAVBAR */}
-      <nav className="flex justify-between items-center px-6 py-4 backdrop-blur-md bg-white/5 border-b border-white/10 relative z-10">
-        <h1 className="text-xl font-bold tracking-wide">
+      {/* NAV */}
+      <nav className="relative z-10 flex justify-between items-center px-8 py-5 border-b border-white/10 bg-[#0B0F1A]/70 backdrop-blur-xl">
+        <h1 className="text-lg font-semibold tracking-wide text-white">
           Broker Buddy
         </h1>
 
-        {/* ONLY SIGN IN HERE */}
         <button
           onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-          className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 hover:scale-105 transition font-semibold"
+          className="px-4 py-2 rounded-lg bg-white text-black hover:bg-gray-200 transition font-medium text-sm"
         >
-          Sign In
+          Sign in
         </button>
       </nav>
 
       {/* HERO */}
-      <section className="text-center px-6 pt-28 pb-16 relative z-10">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-5xl md:text-6xl font-extrabold leading-tight"
-        >
-          Freight Brokerage <br />
-          <span className="text-blue-400">Powered by AI</span>
-        </motion.h2>
+      <section className="relative z-10 text-center px-6 pt-28 pb-20 max-w-4xl mx-auto">
 
-        <p className="mt-6 text-gray-300 text-lg max-w-2xl mx-auto">
-          Automate cold emails, analyze carriers, track fuel prices, and close more freight deals faster than ever.
+        <motion.h1
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-4xl md:text-6xl font-semibold leading-tight tracking-tight"
+        >
+          Freight Brokerage<br />
+          <span className="text-blue-400">built for speed</span>
+        </motion.h1>
+
+        <p className="mt-6 text-gray-400 text-base md:text-lg max-w-2xl mx-auto">
+          AI-powered tools for brokers — automate outreach, analyze carriers, and optimize fuel decisions in one system.
         </p>
 
-        <div className="mt-8 flex gap-4 justify-center">
-          
-          {/* REQUEST ACCESS → MODAL */}
+        <div className="mt-8 flex justify-center gap-4">
+
           <button
             onClick={() => setOpen(true)}
-            className="px-6 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 transition hover:scale-105 font-semibold"
+            className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 transition font-medium text-sm shadow-lg shadow-blue-600/20"
           >
             Request Access
           </button>
 
-          <button className="px-6 py-3 rounded-xl border border-white/20 hover:bg-white/10 transition hover:scale-105">
+          <button
+            className="px-6 py-3 rounded-lg border border-white/10 hover:bg-white/5 transition text-sm text-gray-300"
+          >
             Learn More
           </button>
         </div>
+
+        {/* subtle trust line */}
+        <p className="mt-6 text-xs text-gray-500">
+          Built for independent brokers and small fleets
+        </p>
       </section>
 
       {/* FEATURES */}
-      <section className="grid md:grid-cols-3 gap-6 px-10 py-16 max-w-6xl mx-auto relative z-10">
-        {["AI Email Generator", "Carrier Intelligence", "Fuel Analytics"].map((title, i) => (
+      <section className="relative z-10 grid md:grid-cols-3 gap-6 px-8 max-w-6xl mx-auto pb-20">
+
+        {[
+          {
+            title: "AI Cold Outreach",
+            desc: "Generate high-converting carrier emails in seconds."
+          },
+          {
+            title: "Carrier Intelligence",
+            desc: "Search, evaluate, and track carriers efficiently."
+          },
+          {
+            title: "Fuel Analytics",
+            desc: "Monitor pricing trends and reduce operational costs."
+          }
+        ].map((f, i) => (
           <motion.div
             key={i}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            whileHover={{ scale: 1.05 }}
-            className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl hover:border-blue-500 transition"
+            className="p-6 rounded-xl border border-white/10 bg-[#0B0F1A] hover:border-blue-500/30 transition"
           >
-            <h3 className="text-lg font-semibold mb-2 text-blue-400">
-              {title}
+            <h3 className="text-sm font-semibold text-blue-400 mb-2">
+              {f.title}
             </h3>
-            <p className="text-gray-300">
-              Powerful tools to scale your freight brokerage faster.
+            <p className="text-sm text-gray-400">
+              {f.desc}
             </p>
           </motion.div>
         ))}
       </section>
 
-      {/* CTA */}
-      <section className="text-center py-20 border-t border-white/10 relative z-10">
-        <h2 className="text-3xl font-bold">
-          Start Closing More Loads Today
+      {/* CTA SECTION */}
+      <section className="relative z-10 text-center px-6 py-20 border-t border-white/10 bg-[#0B0F1A]/40">
+
+        <h2 className="text-2xl md:text-3xl font-semibold">
+          Start scaling your brokerage smarter
         </h2>
 
-        <p className="text-gray-400 mt-3">
-          Join brokers using AI to scale smarter.
+        <p className="mt-3 text-gray-400 text-sm">
+          Join brokers using automation instead of manual work.
         </p>
 
-        {/* GET STARTED → MODAL */}
         <button
           onClick={() => setOpen(true)}
-          className="mt-6 px-8 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 transition hover:scale-105 font-semibold"
+          className="mt-6 px-7 py-3 rounded-lg bg-white text-black hover:bg-gray-200 transition font-medium text-sm"
         >
           Get Started
         </button>
@@ -109,7 +128,6 @@ export default function Home() {
 
       {/* MODAL */}
       <ApplicationModal open={open} onClose={() => setOpen(false)} />
-
     </main>
   );
 }
