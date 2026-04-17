@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { PlanTier } from "@prisma/client";
+type PlanTier = "BASIC" | "MID" | "PREMIUM";
 
 function normalizePlan(plan: string): PlanTier {
   const value = plan.trim().toLowerCase();
