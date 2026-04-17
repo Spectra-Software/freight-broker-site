@@ -1,8 +1,8 @@
-import NextAuth from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -14,11 +14,8 @@ const handler = NextAuth({
       },
     }),
   ],
-
   secret: process.env.NEXTAUTH_SECRET,
-
   callbacks: {
-    // ✅ Create user if not exists
     async signIn({ user }) {
       if (!user.email) return false;
 
@@ -27,14 +24,13 @@ const handler = NextAuth({
         update: {},
         create: {
           email: user.email,
-          role: "USER", // default role
+          role: "USER",
         },
       });
 
       return true;
     },
 
-    // ✅ Attach role + id to token
     async jwt({ token }) {
       if (!token.email) return token;
 
@@ -52,7 +48,6 @@ const handler = NextAuth({
       return token;
     },
 
-    // ✅ Attach role + approval status to session
     async session({ session, token }) {
       if (!session.user) return session;
 
@@ -64,10 +59,7 @@ const handler = NextAuth({
       session.user = {
         ...session.user,
         role: (token.role as "USER" | "ADMIN") ?? "USER",
-        allowed:
-          token.role === "ADMIN"
-            ? true
-            : app?.status === "APPROVED",
+        allowed: token.role === "ADMIN" ? true : app?.status === "APPROVED",
         status: app?.status ?? "NONE",
         id: token.id as string,
       };
@@ -75,6 +67,4 @@ const handler = NextAuth({
       return session;
     },
   },
-});
-
-export { handler as GET, handler as POST };
+};

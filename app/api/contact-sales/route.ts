@@ -1,43 +1,51 @@
 import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { prisma } from "@/lib/prisma";
+import type { PlanTier } from "@prisma/client";
+
+function normalizePlan(plan: string): PlanTier {
+  const value = plan.trim().toLowerCase();
+
+  if (value === "basic" || value.includes("starter")) return "BASIC";
+  if (value === "mid" || value.includes("pro")) return "MID";
+  return "PREMIUM";
+}
 
 export async function POST(req: Request) {
   try {
-    console.log("SENDING EMAIL...");
+    console.log("SAVING APPLICATION...");
 
     const body = await req.json();
-    const { name, email, company, comments, plan } = body; // ✅ ADDED PLAN
+    const name = String(body.name || "").trim();
+    const email = String(body.email || "").trim().toLowerCase();
+    const company = String(body.company || "").trim();
+    const comments = String(body.comments || "").trim();
+    const plan = String(body.plan || "").trim();
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+    if (!name || !email || !company || !comments || !plan) {
+      return NextResponse.json(
+        { success: false, error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    const application = await prisma.application.create({
+      data: {
+        name,
+        email,
+        company,
+        comments,
+        desiredPlan: normalizePlan(plan),
       },
     });
 
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM,
-      to: "austin@haulorafreight.com",
-      subject: "New Contact Form Submission",
-      text: `
-Name: ${name}
-Email: ${email}
-Company: ${company}
-Selected Plan: ${plan}
-
-Comments:
-${comments}
-      `,
+    return NextResponse.json({
+      success: true,
+      applicationId: application.id,
     });
-
-    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("EMAIL ERROR:", error);
-
+    console.error("APPLICATION ERROR:", error);
     return NextResponse.json(
-      { success: false },
+      { success: false, error: "Failed to save application" },
       { status: 500 }
     );
   }
