@@ -7,6 +7,11 @@ const handler = NextAuth({
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          prompt: "select_account",
+        },
+      },
     }),
   ],
 
@@ -31,19 +36,15 @@ const handler = NextAuth({
     async jwt({ token }) {
       if (!token.email) return token;
 
-      try {
-        const dbUser = await prisma.user.findUnique({
-          where: { email: token.email },
-        });
+      const dbUser = await prisma.user.findUnique({
+        where: { email: token.email },
+      });
 
-        if (dbUser) {
-          token.role = dbUser.role;
-          token.id = dbUser.id;
-        } else {
-          token.role = "USER";
-        }
-      } catch (err) {
-        console.error("JWT error:", err);
+      if (dbUser) {
+        token.role = dbUser.role;
+        token.id = dbUser.id;
+      } else {
+        token.role = "USER";
       }
 
       return token;
@@ -52,22 +53,18 @@ const handler = NextAuth({
     async session({ session, token }) {
       if (!session.user) return session;
 
-      try {
-        const app = await prisma.application.findFirst({
-          where: { email: session.user.email! },
-          orderBy: { createdAt: "desc" },
-        });
+      const app = await prisma.application.findFirst({
+        where: { email: session.user.email! },
+        orderBy: { createdAt: "desc" },
+      });
 
-        session.user = {
-          ...session.user,
-          role: token.role as "USER" | "ADMIN",
-          status: app?.status ?? "NONE",
-          allowed: app?.status === "APPROVED",
-          id: token.id as string,
-        };
-      } catch (err) {
-        console.error("SESSION error:", err);
-      }
+      session.user = {
+        ...session.user,
+        role: token.role as "USER" | "ADMIN",
+        status: app?.status ?? "NONE",
+        allowed: app?.status === "APPROVED",
+        id: token.id as string,
+      };
 
       return session;
     },
