@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 🌌 Background animation blobs */
+/* Background animations */
 @keyframes blob1 {
   0% { transform: translate(0px, 0px) scale(1); }
   50% { transform: translate(80px, 60px) scale(1.1); }

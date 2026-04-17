@@ -10,8 +10,9 @@ const handler = NextAuth({
     }),
   ],
 
+  secret: process.env.NEXTAUTH_SECRET,
+
   callbacks: {
-    // 🔐 CREATE USER ON FIRST LOGIN
     async signIn({ user }) {
       if (!user.email) return false;
 
@@ -27,46 +28,46 @@ const handler = NextAuth({
       return true;
     },
 
-    // 🔑 JWT — SINGLE SOURCE OF TRUTH FOR ROLE
     async jwt({ token }) {
       if (!token.email) return token;
 
-      const dbUser = await prisma.user.findUnique({
-        where: { email: token.email },
-      });
+      try {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: token.email },
+        });
 
-      if (dbUser) {
-        token.role = dbUser.role;
-        token.id = dbUser.id;
-      } else {
-        token.role = "USER";
+        if (dbUser) {
+          token.role = dbUser.role;
+          token.id = dbUser.id;
+        } else {
+          token.role = "USER";
+        }
+      } catch (err) {
+        console.error("JWT error:", err);
       }
 
       return token;
     },
 
-    // 📦 SESSION — WHAT FRONTEND USES
     async session({ session, token }) {
       if (!session.user) return session;
 
-      const app = await prisma.application.findFirst({
-        where: { email: session.user.email! },
-        orderBy: { createdAt: "desc" },
-      });
+      try {
+        const app = await prisma.application.findFirst({
+          where: { email: session.user.email! },
+          orderBy: { createdAt: "desc" },
+        });
 
-      session.user = {
-        ...session.user,
-
-        // 🔐 secure role from DB via JWT
-        role: token.role as "USER" | "ADMIN",
-
-        // 🧾 application info
-        status: app?.status ?? "NONE",
-        allowed: app?.status === "APPROVED",
-
-        // optional but useful
-        id: token.id as string,
-      };
+        session.user = {
+          ...session.user,
+          role: token.role as "USER" | "ADMIN",
+          status: app?.status ?? "NONE",
+          allowed: app?.status === "APPROVED",
+          id: token.id as string,
+        };
+      } catch (err) {
+        console.error("SESSION error:", err);
+      }
 
       return session;
     },
