@@ -9,7 +9,7 @@ const handler = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          prompt: "login", // 🔥 FORCE account picker every time
+          prompt: "select_account consent",
           access_type: "offline",
           response_type: "code",
         },
@@ -21,7 +21,7 @@ const handler = NextAuth({
 
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60, // optional (1 hour session)
+    maxAge: 60 * 60,
   },
 
   callbacks: {
@@ -68,10 +68,7 @@ const handler = NextAuth({
       session.user = {
         ...session.user,
         role: (token.role as "USER" | "ADMIN") ?? "USER",
-        allowed:
-          token.role === "ADMIN"
-            ? true
-            : app?.status === "APPROVED",
+        allowed: token.role === "ADMIN" ? true : app?.status === "APPROVED",
         status: app?.status ?? "NONE",
         id: token.id as string,
       };
