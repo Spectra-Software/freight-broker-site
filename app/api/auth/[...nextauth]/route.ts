@@ -9,7 +9,7 @@ const handler = NextAuth({
   clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
   authorization: {
     params: {
-      prompt: "select_account consent",
+      prompt: "login",          // 🔥 forces full re-login
       access_type: "offline",
       response_type: "code",
     },
