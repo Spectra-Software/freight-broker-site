@@ -5,22 +5,26 @@ import { prisma } from "@/lib/prisma";
 const handler = NextAuth({
   providers: [
     GoogleProvider({
-  clientId: process.env.GOOGLE_CLIENT_ID!,
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-  authorization: {
-    params: {
-      prompt: "login",          // 🔥 forces full re-login
-      access_type: "offline",
-      response_type: "code",
-    },
-  },
-}),
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          prompt: "login", // 🔥 FORCE account picker every time
+          access_type: "offline",
+          response_type: "code",
+        },
+      },
+    }),
   ],
 
   secret: process.env.NEXTAUTH_SECRET,
 
+  session: {
+    strategy: "jwt",
+    maxAge: 60 * 60, // optional (1 hour session)
+  },
+
   callbacks: {
-    // ✅ Create user if not exists
     async signIn({ user }) {
       if (!user.email) return false;
 
@@ -29,14 +33,13 @@ const handler = NextAuth({
         update: {},
         create: {
           email: user.email,
-          role: "USER", // default role
+          role: "USER",
         },
       });
 
       return true;
     },
 
-    // ✅ Attach role + id to token
     async jwt({ token }) {
       if (!token.email) return token;
 
@@ -54,7 +57,6 @@ const handler = NextAuth({
       return token;
     },
 
-    // ✅ Attach role + approval status to session
     async session({ session, token }) {
       if (!session.user) return session;
 
