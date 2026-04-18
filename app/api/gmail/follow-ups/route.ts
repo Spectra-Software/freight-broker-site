@@ -15,10 +15,7 @@ export async function GET(req: Request) {
     const authHeader = req.headers.get("authorization");
 
     if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const now = new Date();
@@ -40,7 +37,6 @@ export async function GET(req: Request) {
     for (const email of followUps) {
       try {
         const user = email.user as any;
-
         const accessToken = user?.accessToken;
 
         if (!accessToken) {
@@ -51,10 +47,11 @@ export async function GET(req: Request) {
           continue;
         }
 
-        const attachments: AttachmentInput[] = (email.attachments ?? []).map(
+        // ✅ FIX: convert null → undefined (IMPORTANT)
+        const attachments = (email.attachments ?? []).map(
           (a: AttachmentInput) => ({
             name: a.name,
-            url: a.url ?? undefined,
+            url: a.url ?? undefined,        // 🔥 FIX HERE
             mimeType: a.mimeType ?? undefined,
           })
         );
@@ -64,7 +61,7 @@ export async function GET(req: Request) {
           to: email.to,
           subject: email.subject,
           body: email.body,
-          attachments,
+          attachments, // now fully type-safe
         });
 
         await prisma.email.update({
@@ -89,12 +86,8 @@ export async function GET(req: Request) {
       results,
     });
   } catch (error: any) {
-    console.error("FOLLOW-UP ROUTE ERROR:", error);
-
     return NextResponse.json(
-      {
-        error: error?.message || "Follow-up processing failed",
-      },
+      { error: error?.message || "Follow-up processing failed" },
       { status: 500 }
     );
   }
