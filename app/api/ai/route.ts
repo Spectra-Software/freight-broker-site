@@ -38,27 +38,33 @@ function safeParseJSON(raw: string) {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
+    const body: unknown = await req.json().catch(() => ({}));
 
     const message =
-      typeof body?.message === "string" ? body.message.trim() : "";
+      body &&
+      typeof body === "object" &&
+      "message" in body &&
+      typeof (body as { message?: unknown }).message === "string"
+        ? ((body as { message: string }).message.trim())
+        : "";
 
-    const existingLeads: ExistingLead[] = Array.isArray(body?.existingLeads)
-      ? body.existingLeads
-      : [];
+    const existingLeads: ExistingLead[] =
+      body &&
+      typeof body === "object" &&
+      "existingLeads" in body &&
+      Array.isArray((body as { existingLeads?: unknown }).existingLeads)
+        ? ((body as { existingLeads: ExistingLead[] }).existingLeads)
+        : [];
 
     if (!message) {
-      return NextResponse.json(
-        { error: "No message provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No message provided" }, { status: 400 });
     }
 
     const existingLeadText =
       existingLeads.length > 0
         ? existingLeads
             .slice(0, 50)
-            .map((lead, index) => {
+            .map((lead: ExistingLead, index: number) => {
               return `${index + 1}. ${lead.company || "Unknown company"} | ${lead.website || "No website"} | ${lead.email || "No email"}`;
             })
             .join("\n")
@@ -124,14 +130,12 @@ If this is not a lead request, return:
       ],
     });
 
-    const raw =
-      completion.choices?.[0]?.message?.content?.trim() || "";
-
+    const raw = completion.choices?.[0]?.message?.content?.trim() || "";
     const parsed = safeParseJSON(raw);
 
     if (parsed && typeof parsed === "object") {
-      if (typeof parsed.reply !== "string") {
-        parsed.reply = raw || "No response from AI";
+      if (typeof (parsed as { reply?: unknown }).reply !== "string") {
+        (parsed as { reply: string }).reply = raw || "No response from AI";
       }
 
       return NextResponse.json(parsed);
@@ -140,12 +144,12 @@ If this is not a lead request, return:
     return NextResponse.json({
       reply: raw || "No response from AI",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("GROQ ERROR:", error);
 
     return NextResponse.json(
       {
-        error: error?.message || "AI failed to respond. Check server logs.",
+        error: error instanceof Error ? error.message : "AI failed to respond. Check server logs.",
       },
       { status: 500 }
     );

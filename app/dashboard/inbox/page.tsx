@@ -41,7 +41,7 @@ async function fetchMessages(endpoint: string): Promise<EmailItem[]> {
 
     if (!res.ok) return [];
 
-    const data = await res.json();
+    const data: { messages?: EmailItem[]; items?: EmailItem[] } = await res.json();
     return (data.messages || data.items || []) as EmailItem[];
   } catch {
     return [];
@@ -120,14 +120,24 @@ export default function InboxPage() {
   }, []);
 
   useEffect(() => {
+    if (activeTab !== "approval") return;
+
+    const interval = setInterval(async () => {
+      const approval = await fetchMessages("/api/gmail/for-approval");
+      setApprovalEmails(approval);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
+  useEffect(() => {
     setSelectedApprovalIds([]);
     setSelectedEmail(activeItems[0] || null);
   }, [activeTab, activeItems]);
 
   const approvalSelectedCount = selectedApprovalIds.length;
   const approvalAllSelected =
-    approvalEmails.length > 0 &&
-    selectedApprovalIds.length === approvalEmails.length;
+    approvalEmails.length > 0 && selectedApprovalIds.length === approvalEmails.length;
 
   const toggleApprovalItem = (id: string) => {
     setSelectedApprovalIds((prev) =>
@@ -147,7 +157,24 @@ export default function InboxPage() {
   const handleSendSelected = async () => {
     if (!selectedApprovalIds.length) return;
 
-    console.log("Send selected drafts:", selectedApprovalIds);
+    try {
+      const res = await fetch("/api/gmail/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ids: selectedApprovalIds }),
+      });
+
+      const data: { error?: string } = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Failed to send emails");
+
+      setApprovalEmails((prev) => prev.filter((e) => !selectedApprovalIds.includes(e.id)));
+      setSelectedApprovalIds([]);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const showApprovalActions = activeTab === "approval";
@@ -213,15 +240,13 @@ export default function InboxPage() {
 
       <div className="flex flex-1 gap-4 overflow-hidden">
         <div className="w-[380px] overflow-y-auto rounded-2xl border border-white/10 bg-white/5">
-          {loading && (
-            <div className="p-4 text-sm text-gray-400">Loading...</div>
-          )}
+          {loading && <div className="p-4 text-sm text-gray-400">Loading...</div>}
 
           {!loading && activeItems.length === 0 && (
             <div className="p-4 text-sm text-gray-400">Nothing here yet.</div>
           )}
 
-          {activeItems.map((email) => {
+          {activeItems.map((email: EmailItem) => {
             const isSelected = selectedEmail?.id === email.id;
 
             return (
@@ -257,13 +282,11 @@ export default function InboxPage() {
                   {email.subject}
                 </p>
 
-                <p className="mt-1 truncate text-xs text-gray-400">
-                  {email.snippet}
-                </p>
+                <p className="mt-1 truncate text-xs text-gray-400">{email.snippet}</p>
 
                 {activeTab === "approval" && email.attachments?.length ? (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {email.attachments.map((file) => (
+                    {email.attachments.map((file: Attachment) => (
                       <span
                         key={file.name}
                         className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] text-gray-200"
@@ -315,18 +338,14 @@ export default function InboxPage() {
 
               <div className="flex-1 overflow-y-auto p-5 text-sm text-gray-200">
                 <ReactMarkdown>
-                  {selectedEmail.body ||
-                    selectedEmail.snippet ||
-                    "No content available."}
+                  {selectedEmail.body || selectedEmail.snippet || "No content available."}
                 </ReactMarkdown>
 
                 {selectedEmail.attachments?.length ? (
                   <div className="mt-6">
-                    <h3 className="mb-2 text-sm font-semibold text-white">
-                      Attachments
-                    </h3>
+                    <h3 className="mb-2 text-sm font-semibold text-white">Attachments</h3>
                     <div className="flex flex-wrap gap-2">
-                      {selectedEmail.attachments.map((file) => (
+                      {selectedEmail.attachments.map((file: Attachment) => (
                         <a
                           key={file.name}
                           href={file.url || "#"}
@@ -361,8 +380,7 @@ export default function InboxPage() {
                   <button
                     onClick={handleSendSelected}
                     disabled={
-                      !selectedApprovalIds.includes(selectedEmail.id) &&
-                      !approvalSelectedCount
+                      !selectedApprovalIds.includes(selectedEmail.id) && !approvalSelectedCount
                     }
                     className="rounded-xl bg-emerald-500 px-4 py-2 text-sm text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >

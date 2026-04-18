@@ -63,7 +63,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let userId: string | undefined = (session.user as any).id;
+    let userId: string | undefined = (session.user as { id?: string }).id;
 
     if (!userId) {
       const dbUser = await prisma.user.findUnique({
@@ -83,22 +83,28 @@ export async function POST(req: Request) {
     }
 
     return await createDraftsForUser(req, userId);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("CREATE DRAFTS ERROR:", error);
 
     return NextResponse.json(
-      { error: error?.message || "Failed to create drafts." },
+      {
+        error: error instanceof Error ? error.message : "Failed to create drafts.",
+      },
       { status: 500 }
     );
   }
 }
 
 async function createDraftsForUser(req: Request, userId: string) {
-  const body = await req.json().catch(() => null);
+  const body: unknown = await req.json().catch(() => null);
 
-  const leads: LeadDraftInput[] = Array.isArray(body?.leads)
-    ? body.leads
-    : [];
+  const leads: LeadDraftInput[] =
+    body &&
+    typeof body === "object" &&
+    "leads" in body &&
+    Array.isArray((body as { leads: unknown }).leads)
+      ? ((body as { leads: LeadDraftInput[] }).leads as LeadDraftInput[])
+      : [];
 
   if (!leads.length) {
     return NextResponse.json({ error: "No leads provided" }, { status: 400 });
@@ -118,11 +124,7 @@ async function createDraftsForUser(req: Request, userId: string) {
 
   const seen = new Set<string>(
     existingDrafts.map((draft: ExistingDraftRow) =>
-      [
-        normalize(draft.to),
-        normalize(draft.subject),
-        normalize(draft.company),
-      ].join("|")
+      [normalize(draft.to), normalize(draft.subject), normalize(draft.company)].join("|")
     )
   );
 
@@ -149,11 +151,7 @@ async function createDraftsForUser(req: Request, userId: string) {
       continue;
     }
 
-    const key = [
-      normalize(email),
-      normalize(subject),
-      normalize(lead.company),
-    ].join("|");
+    const key = [normalize(email), normalize(subject), normalize(lead.company)].join("|");
 
     if (seen.has(key)) {
       skipped.push({ lead, reason: "Duplicate draft already exists" });
@@ -163,9 +161,7 @@ async function createDraftsForUser(req: Request, userId: string) {
     seen.add(key);
 
     const attachmentInputs =
-      lead.draft?.attachments?.length
-        ? lead.draft.attachments
-        : lead.attachments || [];
+      lead.draft?.attachments?.length ? lead.draft.attachments : lead.attachments || [];
 
     const created = await prisma.email.create({
       data: {

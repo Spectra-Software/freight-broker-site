@@ -3,6 +3,48 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+type DraftAttachmentRow = {
+  id: string;
+  name: string;
+  url: string | null;
+  mimeType: string | null;
+};
+
+type DraftRow = {
+  id: string;
+  to: string;
+  from: string | null;
+  subject: string;
+  body: string;
+  snippet: string | null;
+  company: string | null;
+  website: string | null;
+  location: string | null;
+  createdAt: Date;
+  attachments: DraftAttachmentRow[];
+};
+
+type DraftEmail = {
+  id: string;
+  to: string;
+  from: string | null;
+  subject: string;
+  body: string;
+  snippet: string | null;
+  company: string | null;
+  website: string | null;
+  location: string | null;
+  createdAt: Date;
+  time: string;
+  status: "FOR_APPROVAL";
+  attachments: {
+    id: string;
+    name: string;
+    url: string | null;
+    mimeType: string | null;
+  }[];
+};
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -11,7 +53,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let userId: string | undefined = (session.user as any).id;
+    let userId: string | undefined = (session.user as { id?: string }).id;
 
     if (!userId) {
       const dbUser = await prisma.user.findUnique({
@@ -30,10 +72,10 @@ export async function GET() {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const drafts = await prisma.email.findMany({
+    const drafts: DraftRow[] = await prisma.email.findMany({
       where: {
         userId,
-        status: "DRAFT", // this is your approval queue for now
+        status: "DRAFT",
       },
       include: {
         attachments: true,
@@ -43,28 +85,20 @@ export async function GET() {
       },
     });
 
-    const formatted = drafts.map((email) => ({
+    const formatted: DraftEmail[] = drafts.map((email: DraftRow) => ({
       id: email.id,
-
-      // show recipient cleanly
-      from: email.company || email.to,
       to: email.to,
-
+      from: email.company || email.to,
       subject: email.subject,
       body: email.body,
       snippet: email.snippet,
-
       company: email.company,
       website: email.website,
       location: email.location,
-
-      // 👇 THIS MATTERS FOR UI CONSISTENCY
+      createdAt: email.createdAt,
+      time: email.createdAt.toISOString(),
       status: "FOR_APPROVAL",
-
-      // 👇 Inbox UI uses time/sentAt/scheduledAt
-      time: email.createdAt,
-
-      attachments: (email.attachments || []).map((a) => ({
+      attachments: (email.attachments ?? []).map((a: DraftAttachmentRow) => ({
         id: a.id,
         name: a.name,
         url: a.url,
@@ -75,12 +109,12 @@ export async function GET() {
     return NextResponse.json({
       messages: formatted,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("FOR APPROVAL ERROR:", error);
 
     return NextResponse.json(
       {
-        error: error?.message || "Failed to fetch drafts",
+        error: error instanceof Error ? error.message : "Failed to fetch drafts",
       },
       { status: 500 }
     );
