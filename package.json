@@ -17,6 +17,7 @@
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.9.1",
     "framer-motion": "^12.38.0",
+    "googleapis": "^171.4.0",
     "groq-sdk": "^1.1.2",
     "next": "16.2.4",
     "next-auth": "^4.24.14",

@@ -7,9 +7,16 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ success: true, apps });
+    return NextResponse.json({
+      success: true,
+      apps,
+    });
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ success: false }, { status: 500 });
+    console.error("ADMIN LIST ERROR:", err);
+
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch applications" },
+      { status: 500 }
+    );
   }
 }

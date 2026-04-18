@@ -16,17 +16,29 @@ type App = {
   createdAt: string;
 };
 
+type ViewMode = "applications" | "inbox" | "sent";
+type Filter = "PENDING" | "APPROVED" | "DENIED";
+
 export default function AdminPage() {
   const router = useRouter();
+
   const [apps, setApps] = useState<App[]>([]);
   const [loading, setLoading] = useState(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState("");
 
+  const [view, setView] = useState<ViewMode>("applications");
+  const [filter, setFilter] = useState<Filter>("PENDING");
+
+  // Gmail state
+  const [inbox, setInbox] = useState<any[]>([]);
+  const [sent, setSent] = useState<any[]>([]);
+  const [mailLoading, setMailLoading] = useState(false);
+
   async function loadApps() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/applications");
+      const res = await fetch("/api/admin");
       const data = await res.json();
       setApps(data.apps || []);
     } finally {
@@ -37,6 +49,40 @@ export default function AdminPage() {
   useEffect(() => {
     loadApps();
   }, []);
+
+  async function loadMail(type: ViewMode) {
+    setMailLoading(true);
+    try {
+      if (type === "inbox") {
+        const res = await fetch("/api/gmail/inbox");
+        const data = await res.json();
+
+        // 🔥 FIX: support multiple API shapes
+        const messages = data.inbox || data.messages || [];
+        setInbox(messages);
+      }
+
+      if (type === "sent") {
+        const res = await fetch("/api/gmail/sent");
+        const data = await res.json();
+
+        const messages = data.sent || data.messages || [];
+        setSent(messages);
+      }
+    } catch (err) {
+      console.error("Gmail load error:", err);
+      setInbox([]);
+      setSent([]);
+    } finally {
+      setMailLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (view === "inbox" || view === "sent") {
+      loadMail(view);
+    }
+  }, [view]);
 
   async function approve(id: string) {
     setActioningId(id);
@@ -80,11 +126,41 @@ export default function AdminPage() {
     return { pending, approved, denied };
   }, [apps]);
 
+  const filteredApps = useMemo(() => {
+    return apps.filter((a) => a.status === filter);
+  }, [apps, filter]);
+
+  function openGmailCompose(app: App) {
+    const signature =
+      "\n\n--\nBroker Buddy Freight OS\nAustin, TX\naustin@haulorafreight.com";
+
+    const subject = `Broker Buddy Application - ${app.name}`;
+
+    const body =
+      `Hi ${app.name},\n\n` +
+      `Thanks for applying to Broker Buddy.\n\n` +
+      `We reviewed your application and wanted to reach out.\n\n` +
+      `Company: ${app.company}\n` +
+      `Plan: ${app.desiredPlan}\n\n` +
+      `Comments:\n${app.comments}\n\n` +
+      `We will be in touch shortly.\n` +
+      signature;
+
+    const gmailUrl =
+      `https://mail.google.com/mail/?view=cm&fs=1` +
+      `&to=${encodeURIComponent(app.email)}` +
+      `&su=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`;
+
+    window.open(gmailUrl, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <div className="relative flex min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white">
       <AnimatedBackground />
 
       <div className="relative z-10 flex w-full">
+        {/* SIDEBAR (UNCHANGED) */}
         <aside className="flex w-72 flex-col justify-between border-r border-white/10 bg-white/5 p-6 backdrop-blur-xl">
           <div>
             <div className="mb-10">
@@ -93,14 +169,37 @@ export default function AdminPage() {
             </div>
 
             <nav className="space-y-3">
-              <button className="w-full rounded-xl bg-blue-500 px-4 py-3 text-left font-semibold text-white shadow-lg shadow-blue-500/20">
+              <button
+                onClick={() => setView("applications")}
+                className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${
+                  view === "applications"
+                    ? "bg-blue-500 text-white"
+                    : "text-gray-300 hover:bg-white/10"
+                }`}
+              >
                 Applications
               </button>
-              <button className="w-full rounded-xl px-4 py-3 text-left text-gray-300 hover:bg-white/10">
-                Invites
+
+              <button
+                onClick={() => setView("inbox")}
+                className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${
+                  view === "inbox"
+                    ? "bg-blue-500 text-white"
+                    : "text-gray-300 hover:bg-white/10"
+                }`}
+              >
+                Inbox
               </button>
-              <button className="w-full rounded-xl px-4 py-3 text-left text-gray-300 hover:bg-white/10">
-                Users
+
+              <button
+                onClick={() => setView("sent")}
+                className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${
+                  view === "sent"
+                    ? "bg-blue-500 text-white"
+                    : "text-gray-300 hover:bg-white/10"
+                }`}
+              >
+                Sent
               </button>
             </nav>
           </div>
@@ -113,129 +212,144 @@ export default function AdminPage() {
           </button>
         </aside>
 
+        {/* MAIN */}
         <div className="flex-1 flex-col">
           <header className="flex items-center justify-between border-b border-white/10 bg-white/5 px-6 py-4 backdrop-blur-xl">
             <div>
               <p className="text-sm text-gray-400">Overview</p>
-              <h2 className="text-xl font-semibold">Admin Review Queue</h2>
+              <h2 className="text-xl font-semibold capitalize">{view}</h2>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-300">
-                {stats.pending} pending
+            {view === "applications" && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFilter("PENDING")}
+                  className={`rounded-xl px-4 py-2 text-sm ${
+                    filter === "PENDING"
+                      ? "bg-blue-500 text-white"
+                      : "bg-white/5 text-gray-300"
+                  }`}
+                >
+                  Pending ({stats.pending})
+                </button>
+
+                <button
+                  onClick={() => setFilter("APPROVED")}
+                  className={`rounded-xl px-4 py-2 text-sm ${
+                    filter === "APPROVED"
+                      ? "bg-emerald-500 text-white"
+                      : "bg-white/5 text-gray-300"
+                  }`}
+                >
+                  Approved ({stats.approved})
+                </button>
+
+                <button
+                  onClick={() => setFilter("DENIED")}
+                  className={`rounded-xl px-4 py-2 text-sm ${
+                    filter === "DENIED"
+                      ? "bg-red-500 text-white"
+                      : "bg-white/5 text-gray-300"
+                  }`}
+                >
+                  Denied ({stats.denied})
+                </button>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-300">
-                {stats.approved} approved
-              </div>
-            </div>
+            )}
           </header>
 
           <main className="space-y-6 p-6">
-            {inviteLink && (
-              <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5">
-                <p className="text-sm text-emerald-300">Latest invite link</p>
-                <p className="mt-2 break-all text-sm text-white/90">{inviteLink}</p>
+
+            {/* APPLICATIONS */}
+            {view === "applications" && (
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+                {loading ? (
+                  <p className="text-gray-400">Loading...</p>
+                ) : filteredApps.length === 0 ? (
+                  <p className="text-gray-400">No applications.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredApps.map((app) => (
+                      <motion.div
+                        key={app.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-2xl border border-white/10 bg-black/20 p-5"
+                      >
+                        <div className="flex justify-between gap-6">
+                          <div
+                            onClick={() => openGmailCompose(app)}
+                            className="cursor-pointer"
+                          >
+                            <h4 className="text-lg font-semibold hover:text-blue-400">
+                              {app.name}
+                            </h4>
+                            <p className="text-sm text-gray-300">
+                              {app.email} · {app.company}
+                            </p>
+                          </div>
+
+                          <div className="flex gap-2">
+                            {app.status === "PENDING" && (
+                              <>
+                                <button
+                                  onClick={() => approve(app.id)}
+                                  className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold"
+                                >
+                                  Approve
+                                </button>
+
+                                <button
+                                  onClick={() => deny(app.id)}
+                                  className="rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold"
+                                >
+                                  Deny
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="grid gap-6 md:grid-cols-3">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-                <p className="text-sm text-gray-400">Pending</p>
-                <h3 className="mt-2 text-3xl font-bold">{stats.pending}</h3>
+            {/* INBOX */}
+            {view === "inbox" && (
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+                {mailLoading ? (
+                  <p className="text-gray-400">Loading inbox...</p>
+                ) : inbox.length === 0 ? (
+                  <p className="text-gray-400">No inbox messages found.</p>
+                ) : (
+                  inbox.map((mail, i) => (
+                    <div key={i} className="p-3 border-b border-white/10 text-gray-300">
+                      {mail.snippet || "No preview available"}
+                    </div>
+                  ))
+                )}
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-                <p className="text-sm text-gray-400">Approved</p>
-                <h3 className="mt-2 text-3xl font-bold">{stats.approved}</h3>
+            )}
+
+            {/* SENT */}
+            {view === "sent" && (
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+                {mailLoading ? (
+                  <p className="text-gray-400">Loading sent...</p>
+                ) : sent.length === 0 ? (
+                  <p className="text-gray-400">No sent messages found.</p>
+                ) : (
+                  sent.map((mail, i) => (
+                    <div key={i} className="p-3 border-b border-white/10 text-gray-300">
+                      {mail.snippet || "No preview available"}
+                    </div>
+                  ))
+                )}
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-                <p className="text-sm text-gray-400">Denied</p>
-                <h3 className="mt-2 text-3xl font-bold">{stats.denied}</h3>
-              </div>
-            </div>
+            )}
 
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Applications</p>
-                  <h3 className="text-2xl font-semibold">Review queue</h3>
-                </div>
-              </div>
-
-              {loading ? (
-                <p className="text-gray-400">Loading applications...</p>
-              ) : apps.length === 0 ? (
-                <p className="text-gray-400">No applications yet.</p>
-              ) : (
-                <div className="space-y-4">
-                  {apps.map((app, index) => (
-                    <motion.div
-                      key={app.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.04 }}
-                      className="rounded-2xl border border-white/10 bg-black/20 p-5"
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h4 className="text-lg font-semibold">
-                              {app.name}
-                            </h4>
-                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-300">
-                              {app.status}
-                            </span>
-                          </div>
-
-                          <p className="text-sm text-gray-300">
-                            {app.email} · {app.company}
-                          </p>
-
-                          <p className="text-sm text-gray-400">
-                            Plan: <span className="text-white">{app.desiredPlan}</span>
-                          </p>
-
-                          <p className="max-w-3xl text-sm leading-6 text-gray-400">
-                            {app.comments}
-                          </p>
-                        </div>
-
-                        <div className="flex gap-3">
-                          {app.status === "PENDING" && (
-                            <>
-                              <button
-                                onClick={() => approve(app.id)}
-                                disabled={actioningId === app.id}
-                                className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
-                              >
-                                {actioningId === app.id ? "Working..." : "Approve"}
-                              </button>
-
-                              <button
-                                onClick={() => deny(app.id)}
-                                disabled={actioningId === app.id}
-                                className="rounded-xl bg-white/10 px-4 py-2 font-semibold text-white hover:bg-white/15 disabled:opacity-60"
-                              >
-                                Deny
-                              </button>
-                            </>
-                          )}
-
-                          {app.status !== "PENDING" && (
-                            <button
-                              onClick={() => approve(app.id)}
-                              disabled={actioningId === app.id}
-                              className="rounded-xl bg-blue-500 px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-60"
-                            >
-                              Reissue Invite
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </div>
           </main>
         </div>
       </div>

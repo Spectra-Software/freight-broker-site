@@ -71,7 +71,7 @@ export default function ContactSalesPage() {
 
         <h1 className="mt-4 text-4xl font-bold">Contact Sales</h1>
         <p className="mt-3 text-gray-400">
-          Fill out the form and we will send it to austin@haulorafreight.com.
+          Fill out the form and we will send it to our Sales Team.
         </p>
 
         <form
@@ -125,9 +125,9 @@ export default function ContactSalesPage() {
               className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none text-gray-300 focus:border-blue-500"
             >
               <option value="">Select a plan</option>
-              <option value="Starter - $99/mo">Starter - $99/mo</option>
-              <option value="Pro - $299/mo">Pro - $299/mo</option>
-              <option value="Enterprise - Custom">Enterprise - Custom</option>
+              <option value="Starter - $59/mo">Starter - $99/mo</option>
+              <option value="Pro - $139/mo">Pro - $299/mo</option>
+              <option value="$229">Enterprise - Custom</option>
             </select>
           </div>
 

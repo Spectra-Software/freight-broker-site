@@ -2,29 +2,60 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { motion } from "framer-motion";
+
+type SessionUser = {
+  email?: string | null;
+  allowed?: boolean;
+};
 
 export default function Home() {
   const router = useRouter();
   const { data: session } = useSession();
+
+  const user = session?.user as SessionUser | undefined;
+  const isLoggedIn = !!user?.email;
+  const isApproved = user?.allowed === true;
+  const isUnapproved = isLoggedIn && !isApproved;
 
   const handleGetStarted = () => {
     router.push("/pricing");
   };
 
   const handleEnterDashboard = async () => {
-    if (!session?.user?.email) {
-      await signIn("google", { callbackUrl: "/dashboard" });
+    if (!isLoggedIn) {
+      await signIn("google", { callbackUrl: "/application-status" });
       return;
     }
 
-    if (session.user.allowed) {
+    if (isApproved) {
       router.push("/dashboard");
     } else {
-      router.push("/contact-sales");
+      router.push("/application-status");
     }
   };
+
+  const handleAuthButton = async () => {
+    if (!isLoggedIn) {
+      await signIn("google", { callbackUrl: "/application-status" });
+      return;
+    }
+
+    if (isUnapproved) {
+      await signOut({ redirect: false });
+      await signIn("google", { callbackUrl: "/application-status" });
+      return;
+    }
+
+    await signOut({ callbackUrl: "/" });
+  };
+
+  const authButtonLabel = !isLoggedIn
+    ? "Sign in with Google"
+    : isUnapproved
+      ? "Choose Another Google Account"
+      : "Logout";
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050816] text-white">
@@ -42,7 +73,9 @@ export default function Home() {
           </div>
           <div>
             <div className="text-sm text-gray-400">Broker Buddy</div>
-            <div className="text-base font-semibold tracking-tight">Freight OS</div>
+            <div className="text-base font-semibold tracking-tight">
+              Freight OS
+            </div>
           </div>
         </Link>
 
@@ -70,10 +103,10 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+            onClick={handleAuthButton}
             className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-gray-200"
           >
-            Sign in with Google
+            {authButtonLabel}
           </button>
         </div>
       </header>
