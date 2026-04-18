@@ -90,13 +90,13 @@ async function handleDraftSend(session: any, ids: string[]) {
       });
 
       // ✅ FIX: normalize null → undefined (THIS WAS YOUR BUILD ERROR)
-      const attachments: AttachmentInput[] = (draft.attachments ?? []).map(
-        (a) => ({
-          name: a.name,
-          url: a.url ?? undefined,
-          mimeType: a.mimeType ?? undefined,
-        })
-      );
+     const attachments: AttachmentInput[] = (draft.attachments ?? []).map(
+  (a: AttachmentInput) => ({
+    name: a.name,
+    url: a.url ?? undefined,
+    mimeType: a.mimeType ?? undefined,
+  })
+);
 
       await sendEmail({
         accessToken: session.accessToken as string,
