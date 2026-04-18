@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 }
 
 // ==============================
-// 🔥 DRAFT SEND HANDLER (SAFE)
+// 🔥 DRAFT SEND HANDLER (FIXED)
 // ==============================
 async function handleDraftSend(session: any, ids: string[]) {
   const userId = session.user?.id;
@@ -90,31 +90,30 @@ async function handleDraftSend(session: any, ids: string[]) {
 
   const results = [];
 
-  // ==============================
-  // PROCESS EACH DRAFT
-  // ==============================
   for (const draft of drafts) {
     try {
-      // 🔒 LOCK TO PREVENT DUPLICATES
+      // lock
       await prisma.email.update({
         where: { id: draft.id },
-        data: {
-          status: "SENDING",
-        },
+        data: { status: "SENDING" },
       });
 
       // ==============================
-      // FORMAT ATTACHMENTS SAFELY
+      // FIXED: typed attachments mapping
       // ==============================
-      const attachments = draft.attachments.map((a) => ({
-        name: a.name,
-        url: a.url ?? undefined,
-        mimeType: a.mimeType ?? undefined,
-      }));
+      const attachments = draft.attachments.map(
+        (a: {
+          name: string;
+          url: string | null;
+          mimeType: string | null;
+        }) => ({
+          name: a.name,
+          url: a.url ?? undefined,
+          mimeType: a.mimeType ?? undefined,
+        })
+      );
 
-      // ==============================
-      // SEND EMAIL
-      // ==============================
+      // send email
       await sendEmail({
         accessToken: session.accessToken as string,
         to: draft.to,
@@ -123,9 +122,7 @@ async function handleDraftSend(session: any, ids: string[]) {
         attachments,
       });
 
-      // ==============================
-      // MARK SENT
-      // ==============================
+      // mark sent
       await prisma.email.update({
         where: { id: draft.id },
         data: {
@@ -134,9 +131,7 @@ async function handleDraftSend(session: any, ids: string[]) {
         },
       });
 
-      // ==============================
-      // CREATE FOLLOW-UP
-      // ==============================
+      // follow-up
       await prisma.email.create({
         data: {
           userId,
@@ -162,21 +157,15 @@ async function handleDraftSend(session: any, ids: string[]) {
 
       results.push({ id: draft.id, status: "sent" });
 
-      // ==============================
-      // RATE LIMIT SAFETY
-      // ==============================
-      await new Promise((r) => setTimeout(r, 400));
+      // small delay (rate limiting safety)
+      await new Promise((r) => setTimeout(r, 300));
     } catch (err: any) {
       console.error("SEND ERROR:", err);
 
-      // ==============================
-      // PERSIST FAILURE
-      // ==============================
       await prisma.email.update({
         where: { id: draft.id },
         data: {
           status: "FAILED",
-          lastError: err?.message ?? "unknown error",
         },
       });
 
