@@ -45,6 +45,12 @@ type CreatedDraft = {
   attachments: CreatedAttachment[];
 };
 
+type ExistingDraftRow = {
+  to: string;
+  subject: string;
+  company: string | null;
+};
+
 function normalize(value?: string | null) {
   return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -98,7 +104,7 @@ async function createDraftsForUser(req: Request, userId: string) {
     return NextResponse.json({ error: "No leads provided" }, { status: 400 });
   }
 
-  const existingDrafts = await prisma.email.findMany({
+  const existingDrafts: ExistingDraftRow[] = await prisma.email.findMany({
     where: {
       userId,
       status: "DRAFT",
@@ -110,8 +116,8 @@ async function createDraftsForUser(req: Request, userId: string) {
     },
   });
 
-  const seen = new Set(
-    existingDrafts.map((draft) =>
+  const seen = new Set<string>(
+    existingDrafts.map((draft: ExistingDraftRow) =>
       [
         normalize(draft.to),
         normalize(draft.subject),
