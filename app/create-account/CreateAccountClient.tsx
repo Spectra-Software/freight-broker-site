@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 export default function CreateAccountClient() {
   const router = useRouter();
@@ -48,11 +48,6 @@ export default function CreateAccountClient() {
   async function handleSubmit() {
     if (!token) return;
 
-    if (!name || !company) {
-      setError("Name and company are required");
-      return;
-    }
-
     setLoading(true);
     setError("");
 
@@ -80,7 +75,7 @@ export default function CreateAccountClient() {
 
   if (validating) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+      <div className="flex min-h-screen items-center justify-center text-white">
         Validating invite...
       </div>
     );
@@ -88,7 +83,7 @@ export default function CreateAccountClient() {
 
   if (error && !email) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+      <div className="flex min-h-screen items-center justify-center text-white">
         <div className="text-center space-y-4">
           <p className="text-red-400">{error}</p>
           <button onClick={() => router.push("/")} className="bg-blue-500 px-4 py-2 rounded-xl">
@@ -100,36 +95,21 @@ export default function CreateAccountClient() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white p-6">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+    <div className="flex min-h-screen items-center justify-center text-white p-6">
+      <div className="w-full max-w-md space-y-4">
+        <h1 className="text-2xl font-bold">Create Account</h1>
 
-        <h1 className="text-2xl font-bold">Create Your Account</h1>
+        {email && <p className="text-sm text-gray-400">{email}</p>}
 
-        {email && (
-          <p className="text-sm text-gray-400">
-            Invited email: <span className="text-white">{email}</span>
-          </p>
-        )}
-
-        <input className="w-full p-3 rounded-xl bg-black/30 border" placeholder="Full Name"
-          value={name} onChange={(e) => setName(e.target.value)} />
-
-        <input className="w-full p-3 rounded-xl bg-black/30 border" placeholder="Company"
-          value={company} onChange={(e) => setCompany(e.target.value)} />
-
-        <input className="w-full p-3 rounded-xl bg-black/30 border" placeholder="Phone"
-          value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <input className="w-full p-3 bg-black/30 rounded-xl" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="w-full p-3 bg-black/30 rounded-xl" placeholder="Company" value={company} onChange={(e) => setCompany(e.target.value)} />
+        <input className="w-full p-3 bg-black/30 rounded-xl" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="w-full bg-emerald-500 py-3 rounded-xl font-semibold disabled:opacity-50"
-        >
+        <button onClick={handleSubmit} disabled={loading} className="w-full bg-emerald-500 py-3 rounded-xl">
           {loading ? "Creating..." : "Complete Setup"}
         </button>
-
       </div>
     </div>
   );

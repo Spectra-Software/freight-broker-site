@@ -26,18 +26,36 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. update user with onboarding info
-    await prisma.user.update({
+    // 2. CREATE OR UPDATE USER (FIXED ✅)
+    const user = await prisma.user.upsert({
       where: { email: invite.email },
-      data: {
+      update: {
         name,
         company,
         phone,
         isOnboarded: true,
+        plan: invite.plan,
+      },
+      create: {
+        email: invite.email,
+        name,
+        company,
+        phone,
+        isOnboarded: true,
+        plan: invite.plan,
+        role: "USER",
       },
     });
 
-    // 3. mark invite as used
+    // 3. link application → user (BONUS FIX ✅)
+    await prisma.application.updateMany({
+      where: { email: invite.email },
+      data: {
+        userId: user.id,
+      },
+    });
+
+    // 4. mark invite as used
     await prisma.invite.update({
       where: { token },
       data: { used: true },
