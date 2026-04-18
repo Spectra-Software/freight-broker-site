@@ -4,10 +4,16 @@ import { sendEmail } from "@/lib/google/gmail";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
-type AttachmentInput = {
+type DbAttachment = {
   name: string;
-  url?: string | null;
-  mimeType?: string | null;
+  url: string | null;
+  mimeType: string | null;
+};
+
+type SafeAttachment = {
+  name: string;
+  url?: string;
+  mimeType?: string;
 };
 
 export async function GET(req: Request) {
@@ -18,12 +24,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const now = new Date();
-
     const followUps = await prisma.email.findMany({
       where: {
         status: "FOLLOW_UP",
-        scheduledAt: { lte: now },
+        scheduledAt: { lte: new Date() },
       },
       include: {
         user: true,
@@ -32,12 +36,13 @@ export async function GET(req: Request) {
       take: 20,
     });
 
-    const results: any[] = [];
+    const results: Array<{ id: string; status: string }> = [];
 
     for (const email of followUps) {
       try {
-        const user = email.user as any;
-        const accessToken = user?.accessToken;
+        const accessToken = (email.user as any)?.accessToken as
+          | string
+          | undefined;
 
         if (!accessToken) {
           results.push({
@@ -47,11 +52,10 @@ export async function GET(req: Request) {
           continue;
         }
 
-        // ✅ FIX: convert null → undefined (IMPORTANT)
-        const attachments = (email.attachments ?? []).map(
-          (a: AttachmentInput) => ({
+        const attachments: SafeAttachment[] = (email.attachments ?? []).map(
+          (a: DbAttachment) => ({
             name: a.name,
-            url: a.url ?? undefined,        // 🔥 FIX HERE
+            url: a.url ?? undefined,
             mimeType: a.mimeType ?? undefined,
           })
         );
@@ -61,7 +65,7 @@ export async function GET(req: Request) {
           to: email.to,
           subject: email.subject,
           body: email.body,
-          attachments, // now fully type-safe
+          attachments,
         });
 
         await prisma.email.update({
@@ -76,7 +80,10 @@ export async function GET(req: Request) {
       } catch (err) {
         console.error("FOLLOW-UP SEND ERROR:", err);
 
-        results.push({ id: email.id, status: "failed" });
+        results.push({
+          id: email.id,
+          status: "failed",
+        });
       }
     }
 

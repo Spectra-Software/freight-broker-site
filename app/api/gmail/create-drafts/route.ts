@@ -1,14 +1,12 @@
-// app/api/gmail/create-drafts/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
 
 type DraftAttachmentInput = {
   name: string;
-  url?: string;
-  mimeType?: string;
+  url?: string | null;
+  mimeType?: string | null;
 };
 
 type LeadDraftInput = {
@@ -24,18 +22,37 @@ type LeadDraftInput = {
   attachments?: DraftAttachmentInput[];
 };
 
+type CreatedAttachment = {
+  id: string;
+  name: string;
+  url: string | null;
+  mimeType: string | null;
+};
+
+type CreatedDraft = {
+  id: string;
+  to: string;
+  from: string | null;
+  subject: string;
+  body: string;
+  snippet: string | null;
+  company: string | null;
+  website: string | null;
+  location: string | null;
+  scheduledAt: Date | null;
+  sentAt: Date | null;
+  attachments: CreatedAttachment[];
+};
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let userId: string | null = (session.user as any).id ?? null;
+    let userId: string | undefined = (session.user as any).id;
 
     if (!userId) {
       const dbUser = await prisma.user.findUnique({
@@ -44,21 +61,14 @@ export async function POST(req: Request) {
       });
 
       if (!dbUser?.id) {
-        return NextResponse.json(
-          { error: "User not found" },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
 
       userId = dbUser.id;
     }
 
-    // 🔥 HARD GUARD (TypeScript + runtime safety)
     if (!userId) {
-      return NextResponse.json(
-        { error: "Missing userId" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
     return await createDraftsForUser(req, userId);
@@ -66,9 +76,7 @@ export async function POST(req: Request) {
     console.error("CREATE DRAFTS ERROR:", error);
 
     return NextResponse.json(
-      {
-        error: error?.message || "Failed to create drafts.",
-      },
+      { error: error?.message || "Failed to create drafts." },
       { status: 500 }
     );
   }
@@ -82,79 +90,67 @@ async function createDraftsForUser(req: Request, userId: string) {
     : [];
 
   if (!leads.length) {
-    return NextResponse.json(
-      { error: "No leads provided" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "No leads provided" }, { status: 400 });
   }
 
   const skipped: Array<{ lead: LeadDraftInput; reason: string }> = [];
+  const createdEmails: CreatedDraft[] = [];
 
-  const createdEmails = await prisma.$transaction(
-    async (tx: Prisma.TransactionClient & typeof prisma) => {
-      const results: any[] = [];
+  for (const lead of leads) {
+    const email = lead.email?.trim();
+    const subject = lead.draft?.subject?.trim();
+    const bodyText = lead.draft?.body?.trim();
 
-      for (const lead of leads) {
-        const email = lead.email?.trim();
-        const subject = lead.draft?.subject?.trim();
-        const bodyText = lead.draft?.body?.trim();
-
-        if (!email) {
-          skipped.push({ lead, reason: "Missing email" });
-          continue;
-        }
-
-        if (!subject) {
-          skipped.push({ lead, reason: "Missing subject" });
-          continue;
-        }
-
-        if (!bodyText) {
-          skipped.push({ lead, reason: "Missing body" });
-          continue;
-        }
-
-        const attachments =
-          lead.draft?.attachments?.length
-            ? lead.draft.attachments
-            : lead.attachments || [];
-
-        const created = await tx.email.create({
-          data: {
-            userId,
-            type: "OUTBOUND",
-            status: "DRAFT",
-            to: email,
-            from: null,
-            subject,
-            body: bodyText,
-            snippet: bodyText.slice(0, 180),
-            company: lead.company?.trim() || null,
-            website: lead.website?.trim() || null,
-            location: lead.location?.trim() || null,
-            scheduledAt: null,
-            sentAt: null,
-            attachments: {
-              create: attachments
-                .filter((a) => a?.name)
-                .map((a) => ({
-                  name: a.name,
-                  url: a.url ?? null,
-                  mimeType: a.mimeType ?? null,
-                })),
-            },
-          },
-          include: {
-            attachments: true,
-          },
-        });
-
-        results.push(created);
-      }
-
-      return results;
+    if (!email) {
+      skipped.push({ lead, reason: "Missing email" });
+      continue;
     }
-  );
+
+    if (!subject) {
+      skipped.push({ lead, reason: "Missing subject" });
+      continue;
+    }
+
+    if (!bodyText) {
+      skipped.push({ lead, reason: "Missing body" });
+      continue;
+    }
+
+    const attachments =
+      lead.draft?.attachments?.length
+        ? lead.draft.attachments
+        : lead.attachments || [];
+
+    const created = await prisma.email.create({
+      data: {
+        userId,
+        type: "OUTBOUND",
+        status: "DRAFT",
+        to: email,
+        from: null,
+        subject,
+        body: bodyText,
+        snippet: bodyText.slice(0, 180),
+        company: lead.company?.trim() || null,
+        website: lead.website?.trim() || null,
+        location: lead.location?.trim() || null,
+        scheduledAt: null,
+        sentAt: null,
+        attachments: {
+          create: attachments.map((a: DraftAttachmentInput) => ({
+            name: a.name,
+            url: a.url ?? null,
+            mimeType: a.mimeType ?? null,
+          })),
+        },
+      },
+      include: {
+        attachments: true,
+      },
+    });
+
+    createdEmails.push(created as CreatedDraft);
+  }
 
   return NextResponse.json({
     ok: true,

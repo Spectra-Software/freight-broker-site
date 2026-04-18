@@ -2,10 +2,34 @@ import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 
-// ==============================
-// REFRESH TOKEN FUNCTION
-// ==============================
-async function refreshAccessToken(token: any) {
+type TokenShape = {
+  accessToken?: string;
+  refreshToken?: string;
+  accessTokenExpires?: number;
+  email?: string;
+  error?: string;
+};
+
+async function persistTokensToDb(email: string, token: TokenShape) {
+  if (!token.accessToken) return;
+
+  try {
+    await prisma.user.update({
+      where: { email },
+      data: {
+        accessToken: token.accessToken,
+        refreshToken: token.refreshToken ?? null,
+        tokenExpiry: token.accessTokenExpires
+          ? new Date(token.accessTokenExpires)
+          : null,
+      },
+    });
+  } catch (err) {
+    console.error("DB SYNC FAILED (check Prisma schema fields):", err);
+  }
+}
+
+async function refreshAccessToken(token: TokenShape) {
   try {
     const res = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -16,42 +40,22 @@ async function refreshAccessToken(token: any) {
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
         grant_type: "refresh_token",
-        refresh_token: token.refreshToken,
+        refresh_token: token.refreshToken ?? "",
       }),
     });
 
     const data = await res.json();
     if (!res.ok) throw data;
 
-    const updatedToken = {
+    const updatedToken: TokenShape = {
       ...token,
       accessToken: data.access_token,
       accessTokenExpires: Date.now() + (data.expires_in ?? 3600) * 1000,
       refreshToken: data.refresh_token ?? token.refreshToken,
     };
 
-    // ==============================
-    // SAFE DB SYNC (DOES NOT CRASH BUILD)
-    // ==============================
     if (token.email) {
-      await prisma.user
-        .update({
-          where: { email: token.email },
-          data: {
-            // ⚠️ these MUST exist in Prisma schema or it will error
-            accessToken: updatedToken.accessToken,
-            refreshToken: updatedToken.refreshToken,
-            tokenExpiry: updatedToken.accessTokenExpires
-              ? new Date(updatedToken.accessTokenExpires)
-              : null,
-          },
-        })
-        .catch((err) => {
-          console.error(
-            "DB SYNC FAILED (check Prisma schema fields):",
-            err
-          );
-        });
+      await persistTokensToDb(token.email, updatedToken);
     }
 
     return updatedToken;
@@ -65,9 +69,6 @@ async function refreshAccessToken(token: any) {
   }
 }
 
-// ==============================
-// AUTH OPTIONS
-// ==============================
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -99,9 +100,6 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
-    // ==============================
-    // SIGN IN
-    // ==============================
     async signIn({ user }) {
       if (!user.email) return false;
 
@@ -117,61 +115,37 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    // ==============================
-    // JWT
-    // ==============================
     async jwt({ token, account, user }) {
-      // FIRST LOGIN
+      const currentToken = token as TokenShape;
+
       if (account) {
-        const updatedToken = {
-          ...token,
-          accessToken: account.access_token,
-          refreshToken: account.refresh_token ?? token.refreshToken,
+        const updatedToken: TokenShape = {
+          ...currentToken,
+          accessToken: account.access_token ?? undefined,
+          refreshToken: account.refresh_token ?? currentToken.refreshToken,
           accessTokenExpires: account.expires_at
             ? account.expires_at * 1000
             : Date.now() + 3600 * 1000,
-          email: user?.email ?? token.email,
+          email: user?.email ?? currentToken.email,
         };
 
-        // SAFE DB SYNC
         if (updatedToken.email) {
-          await prisma.user
-            .update({
-              where: { email: updatedToken.email },
-              data: {
-                accessToken: updatedToken.accessToken,
-                refreshToken: updatedToken.refreshToken,
-                tokenExpiry: updatedToken.accessTokenExpires
-                  ? new Date(updatedToken.accessTokenExpires)
-                  : null,
-              },
-            })
-            .catch((err) => {
-              console.error(
-                "DB SYNC FAILED (check schema fields):",
-                err
-              );
-            });
+          await persistTokensToDb(updatedToken.email, updatedToken);
         }
 
-        return updatedToken;
+        return updatedToken as any;
       }
 
-      // STILL VALID
       if (
-        token.accessTokenExpires &&
-        Date.now() < token.accessTokenExpires
+        currentToken.accessTokenExpires &&
+        Date.now() < currentToken.accessTokenExpires
       ) {
-        return token;
+        return currentToken as any;
       }
 
-      // REFRESH
-      return await refreshAccessToken(token);
+      return (await refreshAccessToken(currentToken)) as any;
     },
 
-    // ==============================
-    // SESSION
-    // ==============================
     async session({ session, token }) {
       if (!session.user) return session;
 
@@ -192,8 +166,8 @@ export const authOptions: NextAuthOptions = {
         id: dbUser?.id as string,
       };
 
-      (session as any).accessToken = token.accessToken;
-      (session as any).refreshToken = token.refreshToken;
+      (session as any).accessToken = (token as TokenShape).accessToken;
+      (session as any).refreshToken = (token as TokenShape).refreshToken;
 
       return session;
     },

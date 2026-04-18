@@ -3,6 +3,27 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+type Attachment = {
+  id: string;
+  name: string;
+  url: string | null;
+  mimeType: string | null;
+};
+
+type DraftEmail = {
+  id: string;
+  to: string;
+  from: string | null;
+  subject: string;
+  body: string;
+  snippet: string | null;
+  company: string | null;
+  website: string | null;
+  location: string | null;
+  createdAt: Date;
+  attachments: Attachment[];
+};
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -33,7 +54,6 @@ export async function GET() {
       userId = dbUser.id;
     }
 
-    // 🚨 guard for Prisma safety
     if (!userId) {
       return NextResponse.json(
         { error: "Missing userId" },
@@ -54,7 +74,7 @@ export async function GET() {
       },
     });
 
-    const formatted = drafts.map((email) => ({
+    const formatted: DraftEmail[] = drafts.map((email) => ({
       id: email.id,
       to: email.to,
       from: email.from,

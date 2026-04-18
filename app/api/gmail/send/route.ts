@@ -4,11 +4,24 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/google/gmail";
 
+type DbAttachment = {
+  name: string;
+  url: string | null;
+  mimeType: string | null;
+};
+
+type SafeAttachment = {
+  name: string;
+  url?: string;
+  mimeType?: string;
+};
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
+    const accessToken = (session as any)?.accessToken as string | undefined;
 
-    if (!session?.accessToken) {
+    if (!accessToken) {
       return NextResponse.json(
         { success: false, error: "No access token" },
         { status: 401 }
@@ -18,7 +31,7 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     if (body.ids && Array.isArray(body.ids)) {
-      return await handleDraftSend(session, body.ids);
+      return await handleDraftSend(session, body.ids, accessToken);
     }
 
     const { to, subject, message } = body;
@@ -31,7 +44,7 @@ export async function POST(req: Request) {
     }
 
     const result = await sendEmail({
-      accessToken: session.accessToken as string,
+      accessToken,
       to,
       subject,
       body: message,
@@ -51,11 +64,12 @@ export async function POST(req: Request) {
   }
 }
 
-// ==============================
-// DRAFT SEND HANDLER
-// ==============================
-async function handleDraftSend(session: any, ids: string[]) {
-  const userId = session.user?.id;
+async function handleDraftSend(
+  session: any,
+  ids: string[],
+  accessToken: string
+) {
+  const userId = session?.user?.id as string | undefined;
 
   if (!userId) {
     return NextResponse.json(
@@ -82,24 +96,20 @@ async function handleDraftSend(session: any, ids: string[]) {
     );
   }
 
-  const results: any[] = [];
+  const results: Array<{ id: string; status: string }> = [];
 
   for (const draft of drafts) {
     try {
-      await prisma.email.update({
-        where: { id: draft.id },
-        data: { status: "SENDING" },
-      });
-
-      // normalize attachments (Prisma-safe)
-      const attachments = (draft.attachments ?? []).map((a) => ({
-        name: a.name,
-        url: a.url ?? undefined,
-        mimeType: a.mimeType ?? undefined,
-      }));
+      const attachments: SafeAttachment[] = (draft.attachments ?? []).map(
+        (a: DbAttachment) => ({
+          name: a.name,
+          url: a.url ?? undefined,
+          mimeType: a.mimeType ?? undefined,
+        })
+      );
 
       await sendEmail({
-        accessToken: session.accessToken as string,
+        accessToken,
         to: draft.to,
         subject: draft.subject,
         body: draft.body,
@@ -126,10 +136,10 @@ async function handleDraftSend(session: any, ids: string[]) {
           scheduledAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
           parentId: draft.id,
           attachments: {
-            create: (draft.attachments ?? []).map((a) => ({
+            create: (draft.attachments ?? []).map((a: DbAttachment) => ({
               name: a.name,
-              url: a.url,
-              mimeType: a.mimeType,
+              url: a.url ?? null,
+              mimeType: a.mimeType ?? null,
             })),
           },
         },
@@ -141,11 +151,6 @@ async function handleDraftSend(session: any, ids: string[]) {
     } catch (err) {
       console.error("SEND ERROR:", err);
 
-      await prisma.email.update({
-        where: { id: draft.id },
-        data: { status: "FAILED" },
-      });
-
       results.push({ id: draft.id, status: "failed" });
     }
   }
@@ -153,7 +158,6 @@ async function handleDraftSend(session: any, ids: string[]) {
   return NextResponse.json({ success: true, results });
 }
 
-// ==============================
 function generateFollowUp(original: string) {
   return `
 <p>Just checking in on my previous email.</p>
