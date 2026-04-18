@@ -25,15 +25,20 @@ enum PlanTier {
 }
 
 model User {
-  id          String       @id @default(cuid())
-  name        String?
-  email       String       @unique
-  image       String?
-  role        Role         @default(USER)
-  plan        PlanTier     @default(BASIC)
-  createdAt   DateTime     @default(now())
+  id            String       @id @default(cuid())
+  name          String?
+  email         String       @unique
+  image         String?
+  role          Role         @default(USER)
+  plan          PlanTier     @default(BASIC)
 
-  applications Application[]
+  company       String?
+  phone         String?
+  isOnboarded   Boolean      @default(false)
+
+  createdAt     DateTime     @default(now())
+
+  applications  Application[]
 }
 
 model Invite {
