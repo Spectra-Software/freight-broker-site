@@ -14,7 +14,6 @@ export async function GET() {
       );
     }
 
-    // get user id
     let userId = (session.user as any).id as string | undefined;
 
     if (!userId) {
@@ -57,12 +56,21 @@ export async function GET() {
       website: email.website,
       location: email.location,
       createdAt: email.createdAt,
-      attachments: email.attachments.map((a) => ({
-        id: a.id,
-        name: a.name,
-        url: a.url,
-        mimeType: a.mimeType,
-      })),
+
+      // ✅ FIXED HERE TOO
+      attachments: email.attachments.map(
+        (a: {
+          id: string;
+          name: string;
+          url: string | null;
+          mimeType: string | null;
+        }) => ({
+          id: a.id,
+          name: a.name,
+          url: a.url,
+          mimeType: a.mimeType,
+        })
+      ),
     }));
 
     return NextResponse.json({
@@ -73,8 +81,7 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        error:
-          error?.message || "Failed to fetch drafts",
+        error: error?.message || "Failed to fetch drafts",
       },
       { status: 500 }
     );
