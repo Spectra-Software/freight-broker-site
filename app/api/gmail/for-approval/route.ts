@@ -3,11 +3,25 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-type Attachment = {
+type DraftAttachment = {
   id: string;
   name: string;
   url: string | null;
   mimeType: string | null;
+};
+
+type DraftRow = {
+  id: string;
+  to: string;
+  from: string | null;
+  subject: string;
+  body: string;
+  snippet: string | null;
+  company: string | null;
+  website: string | null;
+  location: string | null;
+  createdAt: Date;
+  attachments: DraftAttachment[];
 };
 
 type DraftEmail = {
@@ -21,7 +35,7 @@ type DraftEmail = {
   website: string | null;
   location: string | null;
   createdAt: Date;
-  attachments: Attachment[];
+  attachments: DraftAttachment[];
 };
 
 export async function GET() {
@@ -29,15 +43,11 @@ export async function GET() {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     let userId: string | undefined = (session.user as any).id;
 
-    // fallback lookup if missing in session
     if (!userId) {
       const dbUser = await prisma.user.findUnique({
         where: { email: session.user.email },
@@ -45,23 +55,17 @@ export async function GET() {
       });
 
       if (!dbUser?.id) {
-        return NextResponse.json(
-          { error: "User not found" },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
 
       userId = dbUser.id;
     }
 
     if (!userId) {
-      return NextResponse.json(
-        { error: "Missing userId" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const drafts = await prisma.email.findMany({
+    const drafts = (await prisma.email.findMany({
       where: {
         userId,
         status: "DRAFT",
@@ -72,9 +76,9 @@ export async function GET() {
       orderBy: {
         createdAt: "desc",
       },
-    });
+    })) as DraftRow[];
 
-    const formatted: DraftEmail[] = drafts.map((email) => ({
+    const formatted: DraftEmail[] = drafts.map((email: DraftRow) => ({
       id: email.id,
       to: email.to,
       from: email.from,
@@ -85,8 +89,7 @@ export async function GET() {
       website: email.website,
       location: email.location,
       createdAt: email.createdAt,
-
-      attachments: (email.attachments ?? []).map((a) => ({
+      attachments: (email.attachments ?? []).map((a: DraftAttachment) => ({
         id: a.id,
         name: a.name,
         url: a.url,
