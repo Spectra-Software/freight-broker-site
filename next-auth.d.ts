@@ -21,5 +21,8 @@ declare module "next-auth/jwt" {
     id: string;
     email?: string;
     role: "USER" | "ADMIN";
+	accessToken?: string;
+    refreshToken?: string;
+    accessTokenExpires?: number;
   }
 }
