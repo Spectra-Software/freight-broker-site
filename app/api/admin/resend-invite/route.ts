@@ -14,7 +14,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. get application
     const app = await prisma.application.findUnique({
       where: { id: applicationId },
     });
@@ -26,21 +25,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. invalidate previous unused invites (IMPORTANT FIX)
+    // 1. invalidate old invites (optional but recommended)
     await prisma.invite.updateMany({
-      where: {
-        email: app.email,
-        used: false,
-      },
-      data: {
-        used: true,
-      },
+      where: { email: app.email, used: false },
+      data: { used: true },
     });
 
-    // 3. generate invite token
+    // 2. create new token
     const token = crypto.randomBytes(32).toString("hex");
 
-    // 4. create invite
     await prisma.invite.create({
       data: {
         email: app.email,
@@ -49,13 +42,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // 5. mark approved
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: { status: "APPROVED" },
-    });
-
-    // 🔥 SAFE BASE URL (FIXES LOCALHOST ISSUE)
     const baseUrl =
       process.env.APP_URL ||
       process.env.NEXTAUTH_URL ||
@@ -63,7 +49,7 @@ export async function POST(req: Request) {
 
     const inviteLink = `${baseUrl}/create-account?token=${token}`;
 
-    // 6. email setup
+    // 3. send email
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
@@ -74,24 +60,21 @@ export async function POST(req: Request) {
       },
     });
 
-    // 7. send invite email
     await transporter.sendMail({
       from: `"Broker Buddy" <${process.env.SMTP_FROM}>`,
       to: app.email,
-      subject: "You're Approved — Create Your Account",
+      subject: "Your Account Link Has Been Reissued",
       html: `
         <div style="font-family: sans-serif">
-          <h2>You're Approved 🎉</h2>
-          <p>Your application has been approved.</p>
+          <h2>Account Link Reissued 🔁</h2>
 
-          <p>Click below to create your account:</p>
+          <p>Your account creation link has been regenerated.</p>
 
           <a href="${inviteLink}" style="display:inline-block;padding:10px 16px;background:#2563eb;color:white;border-radius:8px;text-decoration:none;">
             Create Account
           </a>
 
           <p style="margin-top:20px;font-size:12px;color:#666;">
-            If the button doesn't work, use this link:<br/>
             ${inviteLink}
           </p>
         </div>
@@ -103,10 +86,10 @@ export async function POST(req: Request) {
       inviteLink,
     });
   } catch (err) {
-    console.error("APPROVE ERROR:", err);
+    console.error("RESEND INVITE ERROR:", err);
 
     return NextResponse.json(
-      { success: false, error: "Failed to approve application" },
+      { success: false, error: "Failed to resend invite" },
       { status: 500 }
     );
   }

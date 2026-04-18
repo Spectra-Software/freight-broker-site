@@ -35,6 +35,10 @@ export default function AdminPage() {
   const [sent, setSent] = useState<any[]>([]);
   const [mailLoading, setMailLoading] = useState(false);
 
+  // ✅ RESEND STATE (NEW)
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
+
   async function loadApps() {
     setLoading(true);
     try {
@@ -56,23 +60,14 @@ export default function AdminPage() {
       if (type === "inbox") {
         const res = await fetch("/api/gmail/inbox");
         const data = await res.json();
-
-        // 🔥 FIX: support multiple API shapes
-        const messages = data.inbox || data.messages || [];
-        setInbox(messages);
+        setInbox(data.inbox || data.messages || []);
       }
 
       if (type === "sent") {
         const res = await fetch("/api/gmail/sent");
         const data = await res.json();
-
-        const messages = data.sent || data.messages || [];
-        setSent(messages);
+        setSent(data.sent || data.messages || []);
       }
-    } catch (err) {
-      console.error("Gmail load error:", err);
-      setInbox([]);
-      setSent([]);
     } finally {
       setMailLoading(false);
     }
@@ -101,6 +96,53 @@ export default function AdminPage() {
       }
     } finally {
       setActioningId(null);
+    }
+  }
+
+  // ✅ RESEND WITH 30s COOLDOWN + SPINNER
+  async function resendInvite(id: string) {
+    if (resendingId === id || cooldowns[id]) return;
+
+    setResendingId(id);
+
+    try {
+      const res = await fetch("/api/admin/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ applicationId: id }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setInviteLink(data.inviteLink);
+
+        // start cooldown
+        setCooldowns((prev) => ({ ...prev, [id]: 30 }));
+
+        const interval = setInterval(() => {
+          setCooldowns((prev) => {
+            const current = prev[id];
+            if (!current) {
+              clearInterval(interval);
+              return prev;
+            }
+
+            const next = current - 1;
+
+            if (next <= 0) {
+              const copy = { ...prev };
+              delete copy[id];
+              clearInterval(interval);
+              return copy;
+            }
+
+            return { ...prev, [id]: next };
+          });
+        }, 1000);
+      }
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -160,7 +202,8 @@ export default function AdminPage() {
       <AnimatedBackground />
 
       <div className="relative z-10 flex w-full">
-        {/* SIDEBAR (UNCHANGED) */}
+
+        {/* SIDEBAR unchanged */}
         <aside className="flex w-72 flex-col justify-between border-r border-white/10 bg-white/5 p-6 backdrop-blur-xl">
           <div>
             <div className="mb-10">
@@ -169,51 +212,28 @@ export default function AdminPage() {
             </div>
 
             <nav className="space-y-3">
-              <button
-                onClick={() => setView("applications")}
-                className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${
-                  view === "applications"
-                    ? "bg-blue-500 text-white"
-                    : "text-gray-300 hover:bg-white/10"
-                }`}
-              >
+              <button onClick={() => setView("applications")} className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${view === "applications" ? "bg-blue-500 text-white" : "text-gray-300 hover:bg-white/10"}`}>
                 Applications
               </button>
 
-              <button
-                onClick={() => setView("inbox")}
-                className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${
-                  view === "inbox"
-                    ? "bg-blue-500 text-white"
-                    : "text-gray-300 hover:bg-white/10"
-                }`}
-              >
+              <button onClick={() => setView("inbox")} className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${view === "inbox" ? "bg-blue-500 text-white" : "text-gray-300 hover:bg-white/10"}`}>
                 Inbox
               </button>
 
-              <button
-                onClick={() => setView("sent")}
-                className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${
-                  view === "sent"
-                    ? "bg-blue-500 text-white"
-                    : "text-gray-300 hover:bg-white/10"
-                }`}
-              >
+              <button onClick={() => setView("sent")} className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${view === "sent" ? "bg-blue-500 text-white" : "text-gray-300 hover:bg-white/10"}`}>
                 Sent
               </button>
             </nav>
           </div>
 
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="mt-10 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white hover:bg-white/10"
-          >
+          <button onClick={() => router.push("/dashboard")} className="mt-10 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white hover:bg-white/10">
             Back to Dashboard
           </button>
         </aside>
 
         {/* MAIN */}
         <div className="flex-1 flex-col">
+
           <header className="flex items-center justify-between border-b border-white/10 bg-white/5 px-6 py-4 backdrop-blur-xl">
             <div>
               <p className="text-sm text-gray-400">Overview</p>
@@ -222,36 +242,15 @@ export default function AdminPage() {
 
             {view === "applications" && (
               <div className="flex gap-2">
-                <button
-                  onClick={() => setFilter("PENDING")}
-                  className={`rounded-xl px-4 py-2 text-sm ${
-                    filter === "PENDING"
-                      ? "bg-blue-500 text-white"
-                      : "bg-white/5 text-gray-300"
-                  }`}
-                >
+                <button onClick={() => setFilter("PENDING")} className={`rounded-xl px-4 py-2 text-sm ${filter === "PENDING" ? "bg-blue-500 text-white" : "bg-white/5 text-gray-300"}`}>
                   Pending ({stats.pending})
                 </button>
 
-                <button
-                  onClick={() => setFilter("APPROVED")}
-                  className={`rounded-xl px-4 py-2 text-sm ${
-                    filter === "APPROVED"
-                      ? "bg-emerald-500 text-white"
-                      : "bg-white/5 text-gray-300"
-                  }`}
-                >
+                <button onClick={() => setFilter("APPROVED")} className={`rounded-xl px-4 py-2 text-sm ${filter === "APPROVED" ? "bg-emerald-500 text-white" : "bg-white/5 text-gray-300"}`}>
                   Approved ({stats.approved})
                 </button>
 
-                <button
-                  onClick={() => setFilter("DENIED")}
-                  className={`rounded-xl px-4 py-2 text-sm ${
-                    filter === "DENIED"
-                      ? "bg-red-500 text-white"
-                      : "bg-white/5 text-gray-300"
-                  }`}
-                >
+                <button onClick={() => setFilter("DENIED")} className={`rounded-xl px-4 py-2 text-sm ${filter === "DENIED" ? "bg-red-500 text-white" : "bg-white/5 text-gray-300"}`}>
                   Denied ({stats.denied})
                 </button>
               </div>
@@ -260,93 +259,64 @@ export default function AdminPage() {
 
           <main className="space-y-6 p-6">
 
-            {/* APPLICATIONS */}
             {view === "applications" && (
               <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+
                 {loading ? (
                   <p className="text-gray-400">Loading...</p>
-                ) : filteredApps.length === 0 ? (
-                  <p className="text-gray-400">No applications.</p>
                 ) : (
                   <div className="space-y-4">
+
                     {filteredApps.map((app) => (
-                      <motion.div
-                        key={app.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="rounded-2xl border border-white/10 bg-black/20 p-5"
-                      >
+                      <motion.div key={app.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-white/10 bg-black/20 p-5">
+
                         <div className="flex justify-between gap-6">
-                          <div
-                            onClick={() => openGmailCompose(app)}
-                            className="cursor-pointer"
-                          >
-                            <h4 className="text-lg font-semibold hover:text-blue-400">
-                              {app.name}
-                            </h4>
-                            <p className="text-sm text-gray-300">
-                              {app.email} · {app.company}
-                            </p>
+
+                          <div onClick={() => openGmailCompose(app)} className="cursor-pointer">
+                            <h4 className="text-lg font-semibold hover:text-blue-400">{app.name}</h4>
+                            <p className="text-sm text-gray-300">{app.email} · {app.company}</p>
                           </div>
 
                           <div className="flex gap-2">
+
                             {app.status === "PENDING" && (
                               <>
-                                <button
-                                  onClick={() => approve(app.id)}
-                                  className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold"
-                                >
+                                <button onClick={() => approve(app.id)} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold">
                                   Approve
                                 </button>
 
-                                <button
-                                  onClick={() => deny(app.id)}
-                                  className="rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold"
-                                >
+                                <button onClick={() => deny(app.id)} className="rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold">
                                   Deny
                                 </button>
                               </>
                             )}
+
+                            {app.status === "APPROVED" && (
+                              <button
+                                onClick={() => resendInvite(app.id)}
+                                disabled={resendingId === app.id || !!cooldowns[app.id]}
+                                className="rounded-xl px-4 py-2 text-sm font-semibold flex items-center justify-center min-w-[140px] bg-blue-500 disabled:opacity-70"
+                              >
+                                {resendingId === app.id ? (
+                                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : cooldowns[app.id] ? (
+                                  `Wait ${cooldowns[app.id]}s`
+                                ) : (
+                                  "Resend Invite"
+                                )}
+                              </button>
+                            )}
+
                           </div>
+
                         </div>
+
                       </motion.div>
                     ))}
+
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* INBOX */}
-            {view === "inbox" && (
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-                {mailLoading ? (
-                  <p className="text-gray-400">Loading inbox...</p>
-                ) : inbox.length === 0 ? (
-                  <p className="text-gray-400">No inbox messages found.</p>
-                ) : (
-                  inbox.map((mail, i) => (
-                    <div key={i} className="p-3 border-b border-white/10 text-gray-300">
-                      {mail.snippet || "No preview available"}
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* SENT */}
-            {view === "sent" && (
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-                {mailLoading ? (
-                  <p className="text-gray-400">Loading sent...</p>
-                ) : sent.length === 0 ? (
-                  <p className="text-gray-400">No sent messages found.</p>
-                ) : (
-                  sent.map((mail, i) => (
-                    <div key={i} className="p-3 border-b border-white/10 text-gray-300">
-                      {mail.snippet || "No preview available"}
-                    </div>
-                  ))
-                )}
               </div>
             )}
 
