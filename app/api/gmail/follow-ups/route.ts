@@ -4,11 +4,14 @@ import { sendEmail } from "@/lib/google/gmail";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
+type AttachmentInput = {
+  name: string;
+  url?: string | null;
+  mimeType?: string | null;
+};
+
 export async function GET(req: Request) {
   try {
-    // ==========================
-    // 🔐 AUTH CHECK (OPTIONAL)
-    // ==========================
     const authHeader = req.headers.get("authorization");
 
     if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
@@ -20,15 +23,10 @@ export async function GET(req: Request) {
 
     const now = new Date();
 
-    // ==========================
-    // 🔥 FETCH DUE FOLLOW-UPS
-    // ==========================
     const followUps = await prisma.email.findMany({
       where: {
         status: "FOLLOW_UP",
-        scheduledAt: {
-          lte: now,
-        },
+        scheduledAt: { lte: now },
       },
       include: {
         user: true,
@@ -39,9 +37,6 @@ export async function GET(req: Request) {
 
     const results: any[] = [];
 
-    // ==========================
-    // 🔥 PROCESS EMAILS
-    // ==========================
     for (const email of followUps) {
       try {
         const user = email.user as any;
@@ -56,20 +51,14 @@ export async function GET(req: Request) {
           continue;
         }
 
-        // ==========================
-        // 📎 SAFE ATTACHMENTS
-        // ==========================
-        const attachments = (email.attachments ?? []).map(
-          (a: any) => ({
+        const attachments: AttachmentInput[] = (email.attachments ?? []).map(
+          (a: AttachmentInput) => ({
             name: a.name,
             url: a.url ?? undefined,
             mimeType: a.mimeType ?? undefined,
           })
         );
 
-        // ==========================
-        // 📧 SEND EMAIL
-        // ==========================
         await sendEmail({
           accessToken,
           to: email.to,
@@ -78,9 +67,6 @@ export async function GET(req: Request) {
           attachments,
         });
 
-        // ==========================
-        // ✅ MARK AS SENT
-        // ==========================
         await prisma.email.update({
           where: { id: email.id },
           data: {
@@ -89,17 +75,11 @@ export async function GET(req: Request) {
           },
         });
 
-        results.push({
-          id: email.id,
-          status: "sent",
-        });
-      } catch (err: any) {
+        results.push({ id: email.id, status: "sent" });
+      } catch (err) {
         console.error("FOLLOW-UP SEND ERROR:", err);
 
-        results.push({
-          id: email.id,
-          status: "failed",
-        });
+        results.push({ id: email.id, status: "failed" });
       }
     }
 
