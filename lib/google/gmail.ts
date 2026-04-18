@@ -1,7 +1,13 @@
 import { google } from "googleapis";
 
+// =========================
+// OAUTH CLIENT (FIXED)
+// =========================
 function getOAuthClient(accessToken: string) {
-  const oauth2Client = new google.auth.OAuth2();
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
 
   oauth2Client.setCredentials({
     access_token: accessToken,
@@ -18,37 +24,121 @@ function getGmail(accessToken: string) {
 }
 
 // =========================
-// SEND EMAIL
+// 🔥 SEND EMAIL (PRODUCTION SAFE)
 // =========================
 export async function sendEmail({
   accessToken,
   to,
   subject,
   body,
+  attachments = [],
 }: {
   accessToken: string;
   to: string;
   subject: string;
   body: string;
+  attachments?: {
+    name: string;
+    url?: string;
+    mimeType?: string;
+  }[];
 }) {
   const gmail = getGmail(accessToken);
 
-  const raw = Buffer.from(
-    [
-      `To: ${to}`,
-      `Subject: ${subject}`,
-      `Content-Type: text/plain; charset="UTF-8"`,
+  // =========================
+  // FETCH ATTACHMENTS SAFELY
+  // =========================
+  const files = await Promise.all(
+    attachments.map(async (file) => {
+      if (!file.url) return null;
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10s limit
+
+        const res = await fetch(file.url, {
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        if (!res.ok) return null;
+
+        const buffer = await res.arrayBuffer();
+
+        // Gmail-safe size guard (10MB per file)
+        if (buffer.byteLength > 10 * 1024 * 1024) {
+          console.warn("ATTACHMENT TOO LARGE:", file.name);
+          return null;
+        }
+
+        return {
+          filename: file.name,
+          mimeType: file.mimeType || "application/pdf",
+          content: Buffer.from(buffer).toString("base64"),
+        };
+      } catch (err) {
+        console.error("ATTACHMENT FETCH FAILED:", file.url);
+        return null;
+      }
+    })
+  );
+
+  const validFiles = files.filter(Boolean) as {
+    filename: string;
+    mimeType: string;
+    content: string;
+  }[];
+
+  const boundary = "----=_Part_" + Date.now();
+
+  const parts: string[] = [];
+
+  // =========================
+  // EMAIL BODY
+  // =========================
+  parts.push(
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    body
+  );
+
+  // =========================
+  // ATTACHMENTS
+  // =========================
+  for (const file of validFiles) {
+    parts.push(
+      `--${boundary}`,
+      `Content-Type: ${file.mimeType}; name="${file.filename}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${file.filename}"`,
       "",
-      body,
-    ].join("\r\n")
-  )
+      file.content
+    );
+  }
+
+  parts.push(`--${boundary}--`);
+
+  const rawMessage = [
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    "",
+    parts.join("\r\n"), // 🔥 IMPORTANT: CRLF FIX
+  ].join("\r\n");
+
+  const encodedMessage = Buffer.from(rawMessage)
     .toString("base64")
     .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 
   return gmail.users.messages.send({
     userId: "me",
-    requestBody: { raw },
+    requestBody: { raw: encodedMessage },
   });
 }
 

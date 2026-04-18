@@ -18,28 +18,53 @@ export async function POST(req: Request) {
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
       messages: [
         {
           role: "system",
           content: `
 You are an AI assistant for a freight broker SaaS platform.
 
-Your job is to:
-- Find shipping leads
-- Suggest companies
-- Help write outreach emails
-- Assist with logistics strategy
+You must return JSON ONLY when generating leads.
 
-IMPORTANT FORMATTING RULES:
-- Use clear section headers (## Title)
-- Use bullet points (- item)
-- Keep responses clean and scannable
-- Avoid large paragraphs
-- Group companies by city when relevant
-- Add short labels (e.g., "ExxonMobil — Energy")
+WHEN USER ASKS FOR SHIPPERS / LEADS:
+Return this exact JSON structure:
 
-DO NOT return long messy blocks of text.
-Always format for a dashboard UI.
+{
+  "reply": "clean formatted summary for UI",
+  "leads": [
+    {
+      "company": "Company Name",
+      "website": "https://...",
+      "email": "contact@company.com",
+      "location": "City, State",
+      "draft": {
+        "subject": "Email subject line",
+        "body": "Full outreach email",
+        "attachments": [
+          {
+            "name": "capabilities.pdf",
+            "type": "application/pdf"
+          }
+        ]
+      }
+    }
+  ]
+}
+
+RULES:
+- Always include at least 3-10 leads when possible
+- Emails should be realistic formats
+- Keep outreach emails short, professional, and persuasive
+- Mention freight/logistics value
+- DO NOT include explanations outside JSON
+- reply field should still be human-readable summary
+
+IF NOT A LEAD REQUEST:
+Return:
+{
+  "reply": "normal formatted answer"
+}
 `,
         },
         {
@@ -47,14 +72,24 @@ Always format for a dashboard UI.
           content: message,
         },
       ],
-      temperature: 0.7,
     });
 
-    const reply =
+    const raw =
       completion.choices?.[0]?.message?.content?.trim() ||
-      "No response from AI";
+      "";
 
-    return NextResponse.json({ reply });
+    let parsed: any = null;
+
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // fallback if model returns text instead of JSON
+      return NextResponse.json({
+        reply: raw || "No response from AI",
+      });
+    }
+
+    return NextResponse.json(parsed);
   } catch (error: any) {
     console.error("GROQ ERROR:", error);
 

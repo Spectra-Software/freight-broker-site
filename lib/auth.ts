@@ -2,7 +2,9 @@ import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 
-// 🔥 Refresh Google access token
+// ==============================
+// 🔥 REFRESH TOKEN FUNCTION
+// ==============================
 async function refreshAccessToken(token: any) {
   try {
     const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -22,14 +24,29 @@ async function refreshAccessToken(token: any) {
 
     if (!res.ok) throw data;
 
-    return {
+    const updatedToken = {
       ...token,
       accessToken: data.access_token,
       accessTokenExpires: Date.now() + data.expires_in * 1000,
       refreshToken: data.refresh_token ?? token.refreshToken,
     };
+
+    // 🔥 SYNC TO DATABASE (CRITICAL FOR CRON)
+    if (token.email) {
+      await prisma.user.update({
+        where: { email: token.email },
+        data: {
+          accessToken: updatedToken.accessToken,
+          refreshToken: updatedToken.refreshToken,
+          tokenExpiry: new Date(updatedToken.accessTokenExpires),
+        },
+      });
+    }
+
+    return updatedToken;
   } catch (error) {
     console.error("TOKEN REFRESH ERROR", error);
+
     return {
       ...token,
       error: "RefreshAccessTokenError",
@@ -37,6 +54,9 @@ async function refreshAccessToken(token: any) {
   }
 }
 
+// ==============================
+// AUTH OPTIONS
+// ==============================
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -47,8 +67,6 @@ export const authOptions: NextAuthOptions = {
           prompt: "consent select_account",
           access_type: "offline",
           response_type: "code",
-
-          // 🔥 REQUIRED FOR GMAIL
           scope: [
             "openid",
             "email",
@@ -71,7 +89,7 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     // ==============================
-    // USER SYNC
+    // SIGN IN
     // ==============================
     async signIn({ user }) {
       if (!user.email) return false;
@@ -89,20 +107,37 @@ export const authOptions: NextAuthOptions = {
     },
 
     // ==============================
-    // 🔥 JWT (STORE + REFRESH TOKENS)
+    // JWT
     // ==============================
     async jwt({ token, account, user }) {
-      // FIRST LOGIN
+      // 🔥 FIRST LOGIN
       if (account) {
-        return {
+        const updatedToken = {
           ...token,
           accessToken: account.access_token,
-          refreshToken: account.refresh_token,
+          refreshToken:
+            account.refresh_token ?? token.refreshToken,
           accessTokenExpires: account.expires_at
             ? account.expires_at * 1000
             : undefined,
           email: user?.email ?? token.email,
         };
+
+        // 🔥 PERSIST TO DB (CRITICAL)
+        if (updatedToken.email) {
+          await prisma.user.update({
+            where: { email: updatedToken.email },
+            data: {
+              accessToken: updatedToken.accessToken,
+              refreshToken: updatedToken.refreshToken,
+              tokenExpiry: updatedToken.accessTokenExpires
+                ? new Date(updatedToken.accessTokenExpires)
+                : null,
+            },
+          });
+        }
+
+        return updatedToken;
       }
 
       // STILL VALID
@@ -118,7 +153,7 @@ export const authOptions: NextAuthOptions = {
     },
 
     // ==============================
-    // SESSION (EXPOSE TOKENS)
+    // SESSION
     // ==============================
     async session({ session, token }) {
       if (!session.user) return session;
@@ -128,18 +163,22 @@ export const authOptions: NextAuthOptions = {
         orderBy: { createdAt: "desc" },
       });
 
+      const dbUser = await prisma.user.findUnique({
+        where: { email: session.user.email! },
+      });
+
       session.user = {
         ...session.user,
-        role: (token.role as "USER" | "ADMIN") ?? "USER",
+        role: (dbUser?.role as "USER" | "ADMIN") ?? "USER",
         allowed:
-          token.role === "ADMIN"
+          dbUser?.role === "ADMIN"
             ? true
             : app?.status === "APPROVED",
         status: app?.status ?? "NONE",
-        id: token.id as string,
+        id: dbUser?.id as string,
       };
 
-      // 🔥 MAKE AVAILABLE TO API ROUTES
+      // 🔥 API ACCESS
       (session as any).accessToken = token.accessToken;
       (session as any).refreshToken = token.refreshToken;
 

@@ -7,16 +7,11 @@ const handler = NextAuth({
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-
       authorization: {
         params: {
           prompt: "consent select_account",
-
-          // IMPORTANT: ensures refresh_token is returned consistently
           access_type: "offline",
           response_type: "code",
-
-          // 🔥 FULL GMAIL ACCESS SCOPES
           scope: [
             "openid",
             "email",
@@ -39,7 +34,7 @@ const handler = NextAuth({
 
   callbacks: {
     // ==============================
-    // USER CREATION / SYNC
+    // SIGN IN
     // ==============================
     async signIn({ user }) {
       if (!user.email) return false;
@@ -57,20 +52,30 @@ const handler = NextAuth({
     },
 
     // ==============================
-    // JWT CALLBACK (CORE GMAIL LOGIC)
+    // JWT CALLBACK
     // ==============================
     async jwt({ token, account, user }) {
-      // 🔥 FIRST LOGIN ONLY (store Google tokens)
+      // 🔥 FIRST LOGIN ONLY
       if (account) {
         token.accessToken = account.access_token;
-
-        // IMPORTANT: only exists sometimes (Google limitation)
         token.refreshToken = account.refresh_token ?? token.refreshToken;
-
-        token.provider = account.provider;
         token.accessTokenExpires = account.expires_at
-  ? account.expires_at * 1000
-  : undefined;
+          ? account.expires_at * 1000
+          : undefined;
+
+        // 🔥 PERSIST TO DATABASE (CRITICAL FOR CRON)
+        if (token.email) {
+          await prisma.user.update({
+            where: { email: token.email },
+            data: {
+              accessToken: token.accessToken,
+              refreshToken: token.refreshToken || undefined,
+              tokenExpiry: token.accessTokenExpires
+                ? new Date(token.accessTokenExpires)
+                : null,
+            },
+          });
+        }
       }
 
       // ensure email exists
@@ -78,9 +83,7 @@ const handler = NextAuth({
         token.email = user.email;
       }
 
-      // ==============================
-      // LOAD USER FROM DATABASE
-      // ==============================
+      // load DB user
       if (token.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: token.email as string },
@@ -94,27 +97,15 @@ const handler = NextAuth({
         }
       }
 
-      // ==============================
-      // OPTIONAL: TOKEN EXPIRY CHECK
-      // ==============================
-      if (
-        token.accessTokenExpires &&
-        Date.now() > (token.accessTokenExpires as number)
-      ) {
-        // token expired (we’ll handle refresh later in Step 3)
-        token.accessTokenExpired = true;
-      }
-
       return token;
     },
 
     // ==============================
-    // SESSION CALLBACK (FRONTEND ACCESS)
+    // SESSION
     // ==============================
     async session({ session, token }) {
       if (!session.user) return session;
 
-      // latest application status
       const app = await prisma.application.findFirst({
         where: { email: session.user.email! },
         orderBy: { createdAt: "desc" },
@@ -127,12 +118,11 @@ const handler = NextAuth({
           token.role === "ADMIN"
             ? true
             : app?.status === "APPROVED",
-
         status: app?.status ?? "NONE",
         id: token.id as string,
       };
 
-      // 🔥 expose Gmail tokens for API routes
+      // 🔥 expose tokens
       (session as any).accessToken = token.accessToken;
       (session as any).refreshToken = token.refreshToken;
       (session as any).accessTokenExpires = token.accessTokenExpires;

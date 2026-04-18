@@ -1,124 +1,342 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
-type Email = {
+type Attachment = {
+  id?: string;
+  name: string;
+  url?: string;
+  mimeType?: string;
+  size?: number;
+};
+
+type EmailItem = {
   id: string;
   from: string;
   subject: string;
   snippet: string;
   body?: string;
   time?: string;
+  sentAt?: string;
+  scheduledAt?: string;
+  status?: "INBOX" | "SENT" | "FOR_APPROVAL" | "FOLLOW_UP";
+  attachments?: Attachment[];
+  to?: string;
 };
 
+type TabKey = "inbox" | "sent" | "approval" | "followUp";
+
+const tabs: { key: TabKey; label: string }[] = [
+  { key: "inbox", label: "Inbox" },
+  { key: "sent", label: "Sent" },
+  { key: "approval", label: "For Approval" },
+  { key: "followUp", label: "Follow Up" },
+];
+
+async function fetchMessages(endpoint: string): Promise<EmailItem[]> {
+  try {
+    const res = await fetch(endpoint);
+
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    return (data.messages || data.items || []) as EmailItem[];
+  } catch {
+    return [];
+  }
+}
+
+function formatDate(value?: string) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString();
+}
+
 export default function InboxPage() {
-  const [emails, setEmails] = useState<Email[]>([]);
-  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>("inbox");
+
+  const [inboxEmails, setInboxEmails] = useState<EmailItem[]>([]);
+  const [sentEmails, setSentEmails] = useState<EmailItem[]>([]);
+  const [approvalEmails, setApprovalEmails] = useState<EmailItem[]>([]);
+  const [followUpEmails, setFollowUpEmails] = useState<EmailItem[]>([]);
+
+  const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
+  const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 🔄 Fetch inbox
+  const activeItems = useMemo(() => {
+    switch (activeTab) {
+      case "inbox":
+        return inboxEmails;
+      case "sent":
+        return sentEmails;
+      case "approval":
+        return approvalEmails;
+      case "followUp":
+        return followUpEmails;
+      default:
+        return [];
+    }
+  }, [activeTab, inboxEmails, sentEmails, approvalEmails, followUpEmails]);
+
   useEffect(() => {
-    const fetchEmails = async () => {
+    const load = async () => {
       setLoading(true);
 
-      try {
-        const res = await fetch("/api/gmail/inbox");
-        const data = await res.json();
+      const [inbox, sent, approval, followUp] = await Promise.all([
+        fetchMessages("/api/gmail/inbox"),
+        fetchMessages("/api/gmail/sent"),
+        fetchMessages("/api/gmail/for-approval"),
+        fetchMessages("/api/gmail/follow-up"),
+      ]);
 
-        setEmails(data.messages || []);
-        setSelectedEmail(data.messages?.[0] || null); // auto-open first email
-      } catch (err) {
-        console.error(err);
-      }
+      setInboxEmails(inbox);
+      setSentEmails(sent);
+      setApprovalEmails(approval);
+      setFollowUpEmails(followUp);
 
       setLoading(false);
     };
 
-    fetchEmails();
+    load();
   }, []);
+
+  useEffect(() => {
+    setSelectedApprovalIds([]);
+    setSelectedEmail(activeItems[0] || null);
+  }, [activeTab, activeItems]);
+
+  const approvalSelectedCount = selectedApprovalIds.length;
+  const approvalAllSelected =
+    approvalEmails.length > 0 &&
+    selectedApprovalIds.length === approvalEmails.length;
+
+  const toggleApprovalItem = (id: string) => {
+    setSelectedApprovalIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllApproval = () => {
+    if (approvalAllSelected) {
+      setSelectedApprovalIds([]);
+      return;
+    }
+
+    setSelectedApprovalIds(approvalEmails.map((x) => x.id));
+  };
+
+  const handleSendSelected = async () => {
+    if (!selectedApprovalIds.length) return;
+
+    // Wire this to your send route once it exists.
+    console.log("Send selected drafts:", selectedApprovalIds);
+  };
+
+  const showApprovalActions = activeTab === "approval";
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col space-y-4">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-2xl font-bold">Inbox</h1>
-        <p className="text-sm text-gray-400">
-          Your connected Gmail inbox
-        </p>
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">
+            {tabs.find((t) => t.key === activeTab)?.label}
+          </h1>
+          <p className="text-sm text-gray-400">
+            Gmail, drafts, approvals, and follow-ups in one place
+          </p>
+        </div>
+
+        {showApprovalActions && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={toggleSelectAllApproval}
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm border border-white/10"
+            >
+              {approvalAllSelected ? "Unselect All" : "Select All"}
+            </button>
+
+            <button
+              onClick={handleSendSelected}
+              disabled={!approvalSelectedCount}
+              className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm"
+            >
+              Send Selected ({approvalSelectedCount})
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* MAIN 2-PANE LAYOUT */}
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 rounded-full text-sm border transition ${
+              activeTab === tab.key
+                ? "bg-white text-black border-white"
+                : "bg-white/5 text-white border-white/10 hover:bg-white/10"
+            }`}
+          >
+            {tab.label}
+            <span className="ml-2 text-xs opacity-70">
+              {
+                tab.key === "inbox"
+                  ? inboxEmails.length
+                  : tab.key === "sent"
+                  ? sentEmails.length
+                  : tab.key === "approval"
+                  ? approvalEmails.length
+                  : followUpEmails.length
+              }
+            </span>
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-1 gap-4 overflow-hidden">
-        
-        {/* 📥 LEFT: EMAIL LIST */}
         <div className="w-[380px] overflow-y-auto rounded-2xl bg-white/5 border border-white/10">
           {loading && (
+            <div className="p-4 text-sm text-gray-400">Loading...</div>
+          )}
+
+          {!loading && activeItems.length === 0 && (
             <div className="p-4 text-sm text-gray-400">
-              Loading inbox...
+              Nothing here yet.
             </div>
           )}
 
-          {emails.map((email) => (
-            <div
-              key={email.id}
-              onClick={() => setSelectedEmail(email)}
-              className={`p-4 border-b border-white/5 cursor-pointer transition hover:bg-white/10 ${
-                selectedEmail?.id === email.id
-                  ? "bg-white/10"
-                  : ""
-              }`}
-            >
-              <div className="flex justify-between items-center">
-                <p className="font-semibold text-sm text-white truncate">
-                  {email.from}
+          {activeItems.map((email) => {
+            const isSelected = selectedEmail?.id === email.id;
+
+            return (
+              <div
+                key={email.id}
+                onClick={() => setSelectedEmail(email)}
+                className={`p-4 border-b border-white/5 cursor-pointer transition hover:bg-white/10 ${
+                  isSelected ? "bg-white/10" : ""
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm text-white truncate">
+                      {email.from || email.to || "Unknown"}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {formatDate(email.time || email.sentAt || email.scheduledAt)}
+                    </p>
+                  </div>
+
+                  {activeTab === "approval" && (
+                    <input
+                      type="checkbox"
+                      checked={selectedApprovalIds.includes(email.id)}
+                      onChange={() => toggleApprovalItem(email.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent"
+                    />
+                  )}
+                </div>
+
+                <p className="text-sm text-gray-200 mt-2 font-medium truncate">
+                  {email.subject}
                 </p>
-                <p className="text-xs text-gray-400">
-                  {email.time || ""}
+
+                <p className="text-xs text-gray-400 truncate mt-1">
+                  {email.snippet}
                 </p>
+
+                {activeTab === "approval" && email.attachments?.length ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {email.attachments.map((file) => (
+                      <span
+                        key={file.name}
+                        className="text-[11px] px-2 py-1 rounded-full bg-white/10 text-gray-200 border border-white/10"
+                      >
+                        {file.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-
-              <p className="text-sm text-gray-200 mt-1 font-medium truncate">
-                {email.subject}
-              </p>
-
-              <p className="text-xs text-gray-400 truncate mt-1">
-                {email.snippet}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* 📧 RIGHT: EMAIL READER */}
         <div className="flex-1 flex flex-col rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
-          
           {!selectedEmail ? (
             <div className="m-auto text-gray-400">
-              Select an email to view
+              Select an item to view
             </div>
           ) : (
             <>
-              {/* HEADER */}
               <div className="p-5 border-b border-white/10">
-                <h2 className="text-lg font-semibold">
-                  {selectedEmail.subject}
-                </h2>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">
+                      {selectedEmail.subject}
+                    </h2>
 
-                <p className="text-sm text-gray-400 mt-1">
-                  From: {selectedEmail.from}
-                </p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {selectedEmail.from
+                        ? `From: ${selectedEmail.from}`
+                        : selectedEmail.to
+                        ? `To: ${selectedEmail.to}`
+                        : "No recipient available"}
+                    </p>
+                  </div>
+
+                  {(selectedEmail.time ||
+                    selectedEmail.sentAt ||
+                    selectedEmail.scheduledAt) && (
+                    <p className="text-xs text-gray-400">
+                      {formatDate(
+                        selectedEmail.time ||
+                          selectedEmail.sentAt ||
+                          selectedEmail.scheduledAt
+                      )}
+                    </p>
+                  )}
+                </div>
               </div>
 
-              {/* BODY */}
               <div className="flex-1 p-5 overflow-y-auto text-sm text-gray-200">
                 <ReactMarkdown>
                   {selectedEmail.body ||
                     selectedEmail.snippet ||
                     "No content available."}
                 </ReactMarkdown>
+
+                {selectedEmail.attachments?.length ? (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-semibold text-white mb-2">
+                      Attachments
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedEmail.attachments.map((file) => (
+                        <a
+                          key={file.name}
+                          href={file.url || "#"}
+                          target={file.url ? "_blank" : undefined}
+                          rel={file.url ? "noreferrer" : undefined}
+                          className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs text-white"
+                        >
+                          {file.name}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeTab === "followUp" && selectedEmail.scheduledAt ? (
+                  <div className="mt-6 text-xs text-gray-400">
+                    Scheduled follow-up date: {formatDate(selectedEmail.scheduledAt)}
+                  </div>
+                ) : null}
               </div>
 
-              {/* ACTIONS (Reply / Forward) */}
               <div className="p-4 border-t border-white/10 flex gap-3">
                 <button className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm">
                   Reply
@@ -127,6 +345,16 @@ export default function InboxPage() {
                 <button className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm">
                   Forward
                 </button>
+
+                {activeTab === "approval" && (
+                  <button
+                    onClick={handleSendSelected}
+                    disabled={!selectedApprovalIds.includes(selectedEmail.id) && !approvalSelectedCount}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm"
+                  >
+                    Send Draft
+                  </button>
+                )}
               </div>
             </>
           )}

@@ -18,7 +18,14 @@ model User {
   company      String?
   isOnboarded  Boolean       @default(false)
   phone        String?
+
+  // 🔥 GOOGLE OAUTH (NEW - REQUIRED FOR CRON)
+  accessToken   String?
+  refreshToken  String?
+  tokenExpiry   DateTime?
+
   applications Application[]
+  emails       Email[]
 }
 
 model Invite {
@@ -47,6 +54,69 @@ model Application {
   @@index([status])
 }
 
+//
+// 🔥 EMAIL SYSTEM
+//
+
+model Email {
+  id          String   @id @default(cuid())
+
+  // ownership
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  // classification
+  type        EmailType   @default(OUTBOUND)
+  status      EmailStatus @default(DRAFT)
+
+  // email data
+  to          String
+  from        String?
+  subject     String
+  body        String
+  snippet     String?
+
+  // AI lead metadata
+  company     String?
+  website     String?
+  location    String?
+
+  // scheduling
+  scheduledAt DateTime?
+  sentAt      DateTime?
+
+  // follow-up linkage
+  parentId    String?
+  parent      Email?   @relation("FollowUp", fields: [parentId], references: [id])
+  followUps   Email[]  @relation("FollowUp")
+
+  // attachments
+  attachments Attachment[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+
+  emailId   String
+  email     Email    @relation(fields: [emailId], references: [id])
+
+  name      String
+  url       String?
+  mimeType  String?
+
+  createdAt DateTime @default(now())
+}
+
+//
+// 🔥 ENUMS
+//
+
 enum Role {
   USER
   ADMIN
@@ -62,4 +132,15 @@ enum PlanTier {
   BASIC
   MID
   PREMIUM
+}
+
+enum EmailStatus {
+  DRAFT
+  SENT
+  FOLLOW_UP
+}
+
+enum EmailType {
+  INBOUND
+  OUTBOUND
 }
