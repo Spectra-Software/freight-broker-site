@@ -16,6 +16,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [newEmails, setNewEmails] = useState(3); // 👈 Gmail badge state
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -51,8 +52,10 @@ export default function DashboardLayout({
     );
   }
 
+  // ✅ NAV ITEMS (FIXED + INBOX ADDED)
   const navItems = [
     { name: "Dashboard", path: "/dashboard" },
+    { name: "Inbox", path: "/dashboard/inbox", badge: newEmails }, // 👈 ADDED
     { name: "AI Assistant", path: "/dashboard/ai" },
     { name: "Carrier Lookup", path: "/dashboard/carriers" },
     { name: "Fuel Analytics", path: "/dashboard/fuel" },
@@ -71,6 +74,7 @@ export default function DashboardLayout({
       <AnimatedBackground />
 
       <div className="relative z-10 flex w-full">
+        {/* SIDEBAR */}
         <aside className="w-64 p-6 flex flex-col justify-between border-r border-white/10 bg-white/5 backdrop-blur-xl">
           <div>
             <motion.h1
@@ -90,13 +94,20 @@ export default function DashboardLayout({
                     key={item.path}
                     whileHover={{ scale: 1.03 }}
                     onClick={() => router.push(item.path)}
-                    className={`text-left px-4 py-2 rounded-xl transition ${
+                    className={`flex items-center justify-between text-left px-4 py-2 rounded-xl transition ${
                       isActive
                         ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20"
                         : "hover:bg-white/10 text-gray-300"
                     }`}
                   >
-                    {item.name}
+                    <span>{item.name}</span>
+
+                    {/* 🔵 Gmail-style badge */}
+                    {item.name === "Inbox" && newEmails > 0 && (
+                      <span className="ml-2 text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                        {newEmails}
+                      </span>
+                    )}
                   </motion.button>
                 );
               })}
@@ -104,7 +115,9 @@ export default function DashboardLayout({
           </div>
         </aside>
 
+        {/* MAIN AREA */}
         <div className="flex-1 flex flex-col">
+          {/* HEADER */}
           <header className="relative z-40 flex justify-between items-center px-6 py-4 border-b border-white/10 bg-white/5 backdrop-blur-xl">
             <motion.h2
               key={pathname}
@@ -115,17 +128,17 @@ export default function DashboardLayout({
               {pathname.replace("/dashboard", "") || "Dashboard"}
             </motion.h2>
 
+            {/* USER MENU */}
             <div className="relative z-50" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen((v) => !v)}
                 className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-white/15"
-                aria-label="Open account menu"
               >
                 {userInitial.toUpperCase()}
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 mt-3 w-56 z-50 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-2xl backdrop-blur-xl">
+                <div className="absolute right-0 mt-3 w-56 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-2xl backdrop-blur-xl">
                   <div className="border-b border-white/10 px-4 py-3">
                     <p className="text-sm font-medium text-white">
                       {session?.user?.name || "Account"}
@@ -141,7 +154,7 @@ export default function DashboardLayout({
                         setMenuOpen(false);
                         router.push("/dashboard/settings");
                       }}
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-300 transition hover:bg-white/10 hover:text-white"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-300 hover:bg-white/10 hover:text-white"
                     >
                       Account settings
                     </button>
@@ -152,7 +165,7 @@ export default function DashboardLayout({
                           setMenuOpen(false);
                           router.push("/admin");
                         }}
-                        className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-300 transition hover:bg-white/10 hover:text-white"
+                        className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-300 hover:bg-white/10 hover:text-white"
                       >
                         Admin
                       </button>
@@ -163,7 +176,7 @@ export default function DashboardLayout({
                         setMenuOpen(false);
                         signOut({ callbackUrl: "/" });
                       }}
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-300 transition hover:bg-white/10 hover:text-red-200"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-300 hover:bg-white/10 hover:text-red-200"
                     >
                       Sign out
                     </button>
@@ -173,6 +186,7 @@ export default function DashboardLayout({
             </div>
           </header>
 
+          {/* PAGE CONTENT */}
           <main className="p-6">
             <motion.div
               key={pathname}
