@@ -14,8 +14,9 @@ export async function GET() {
       );
     }
 
-    let userId: string | null = (session.user as any).id ?? null;
+    let userId: string | undefined = (session.user as any).id;
 
+    // fallback lookup if missing in session
     if (!userId) {
       const dbUser = await prisma.user.findUnique({
         where: { email: session.user.email },
@@ -32,6 +33,14 @@ export async function GET() {
       userId = dbUser.id;
     }
 
+    // 🚨 guard for Prisma safety
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Missing userId" },
+        { status: 400 }
+      );
+    }
+
     const drafts = await prisma.email.findMany({
       where: {
         userId,
@@ -45,7 +54,7 @@ export async function GET() {
       },
     });
 
-    const formatted = drafts.map((email: any) => ({
+    const formatted = drafts.map((email) => ({
       id: email.id,
       to: email.to,
       from: email.from,
@@ -57,7 +66,7 @@ export async function GET() {
       location: email.location,
       createdAt: email.createdAt,
 
-      attachments: (email.attachments ?? []).map((a: any) => ({
+      attachments: (email.attachments ?? []).map((a) => ({
         id: a.id,
         name: a.name,
         url: a.url,

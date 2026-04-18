@@ -3,7 +3,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 
 // ==============================
-// 🔥 REFRESH TOKEN FUNCTION
+// REFRESH TOKEN FUNCTION
 // ==============================
 async function refreshAccessToken(token: any) {
   try {
@@ -21,31 +21,42 @@ async function refreshAccessToken(token: any) {
     });
 
     const data = await res.json();
-
     if (!res.ok) throw data;
 
     const updatedToken = {
       ...token,
       accessToken: data.access_token,
-      accessTokenExpires: Date.now() + data.expires_in * 1000,
+      accessTokenExpires: Date.now() + (data.expires_in ?? 3600) * 1000,
       refreshToken: data.refresh_token ?? token.refreshToken,
     };
 
-    // 🔥 SYNC TO DATABASE (CRITICAL FOR CRON)
+    // ==============================
+    // SAFE DB SYNC (DOES NOT CRASH BUILD)
+    // ==============================
     if (token.email) {
-      await prisma.user.update({
-        where: { email: token.email },
-        data: {
-          accessToken: updatedToken.accessToken,
-          refreshToken: updatedToken.refreshToken,
-          tokenExpiry: new Date(updatedToken.accessTokenExpires),
-        },
-      });
+      await prisma.user
+        .update({
+          where: { email: token.email },
+          data: {
+            // ⚠️ these MUST exist in Prisma schema or it will error
+            accessToken: updatedToken.accessToken,
+            refreshToken: updatedToken.refreshToken,
+            tokenExpiry: updatedToken.accessTokenExpires
+              ? new Date(updatedToken.accessTokenExpires)
+              : null,
+          },
+        })
+        .catch((err) => {
+          console.error(
+            "DB SYNC FAILED (check Prisma schema fields):",
+            err
+          );
+        });
     }
 
     return updatedToken;
   } catch (error) {
-    console.error("TOKEN REFRESH ERROR", error);
+    console.error("TOKEN REFRESH ERROR:", error);
 
     return {
       ...token,
@@ -110,31 +121,37 @@ export const authOptions: NextAuthOptions = {
     // JWT
     // ==============================
     async jwt({ token, account, user }) {
-      // 🔥 FIRST LOGIN
+      // FIRST LOGIN
       if (account) {
         const updatedToken = {
           ...token,
           accessToken: account.access_token,
-          refreshToken:
-            account.refresh_token ?? token.refreshToken,
+          refreshToken: account.refresh_token ?? token.refreshToken,
           accessTokenExpires: account.expires_at
             ? account.expires_at * 1000
-            : undefined,
+            : Date.now() + 3600 * 1000,
           email: user?.email ?? token.email,
         };
 
-        // 🔥 PERSIST TO DB (CRITICAL)
+        // SAFE DB SYNC
         if (updatedToken.email) {
-          await prisma.user.update({
-            where: { email: updatedToken.email },
-            data: {
-              accessToken: updatedToken.accessToken,
-              refreshToken: updatedToken.refreshToken,
-              tokenExpiry: updatedToken.accessTokenExpires
-                ? new Date(updatedToken.accessTokenExpires)
-                : null,
-            },
-          });
+          await prisma.user
+            .update({
+              where: { email: updatedToken.email },
+              data: {
+                accessToken: updatedToken.accessToken,
+                refreshToken: updatedToken.refreshToken,
+                tokenExpiry: updatedToken.accessTokenExpires
+                  ? new Date(updatedToken.accessTokenExpires)
+                  : null,
+              },
+            })
+            .catch((err) => {
+              console.error(
+                "DB SYNC FAILED (check schema fields):",
+                err
+              );
+            });
         }
 
         return updatedToken;
@@ -148,7 +165,7 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
 
-      // 🔥 EXPIRED → REFRESH
+      // REFRESH
       return await refreshAccessToken(token);
     },
 
@@ -170,15 +187,11 @@ export const authOptions: NextAuthOptions = {
       session.user = {
         ...session.user,
         role: (dbUser?.role as "USER" | "ADMIN") ?? "USER",
-        allowed:
-          dbUser?.role === "ADMIN"
-            ? true
-            : app?.status === "APPROVED",
+        allowed: dbUser?.role === "ADMIN" ? true : app?.status === "APPROVED",
         status: app?.status ?? "NONE",
         id: dbUser?.id as string,
       };
 
-      // 🔥 API ACCESS
       (session as any).accessToken = token.accessToken;
       (session as any).refreshToken = token.refreshToken;
 

@@ -4,18 +4,6 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/google/gmail";
 
-type PrismaAttachment = {
-  name: string;
-  url: string | null;
-  mimeType: string | null;
-};
-
-type SafeAttachment = {
-  name: string;
-  url?: string;
-  mimeType?: string;
-};
-
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -29,16 +17,10 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    // ==============================
-    // MODE 1: BULK DRAFT SEND
-    // ==============================
     if (body.ids && Array.isArray(body.ids)) {
       return await handleDraftSend(session, body.ids);
     }
 
-    // ==============================
-    // MODE 2: MANUAL SEND
-    // ==============================
     const { to, subject, message } = body;
 
     if (!to || !subject || !message) {
@@ -109,14 +91,12 @@ async function handleDraftSend(session: any, ids: string[]) {
         data: { status: "SENDING" },
       });
 
-      // ✅ normalize Prisma nulls to Gmail-safe undefineds
-      const attachments: SafeAttachment[] = (draft.attachments ?? []).map(
-        (a: PrismaAttachment) => ({
-          name: a.name,
-          url: a.url ?? undefined,
-          mimeType: a.mimeType ?? undefined,
-        })
-      );
+      // normalize attachments (Prisma-safe)
+      const attachments = (draft.attachments ?? []).map((a) => ({
+        name: a.name,
+        url: a.url ?? undefined,
+        mimeType: a.mimeType ?? undefined,
+      }));
 
       await sendEmail({
         accessToken: session.accessToken as string,
@@ -134,14 +114,6 @@ async function handleDraftSend(session: any, ids: string[]) {
         },
       });
 
-      const followUpAttachments = (draft.attachments ?? []).map(
-        (a: PrismaAttachment) => ({
-          name: a.name,
-          url: a.url,
-          mimeType: a.mimeType,
-        })
-      );
-
       await prisma.email.create({
         data: {
           userId,
@@ -154,7 +126,7 @@ async function handleDraftSend(session: any, ids: string[]) {
           scheduledAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
           parentId: draft.id,
           attachments: {
-            create: followUpAttachments.map((a: PrismaAttachment) => ({
+            create: (draft.attachments ?? []).map((a) => ({
               name: a.name,
               url: a.url,
               mimeType: a.mimeType,

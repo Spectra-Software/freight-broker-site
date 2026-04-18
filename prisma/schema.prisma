@@ -19,13 +19,12 @@ model User {
   isOnboarded  Boolean       @default(false)
   phone        String?
 
-  // 🔥 GOOGLE OAUTH (NEW - REQUIRED FOR CRON)
   accessToken   String?
   refreshToken  String?
   tokenExpiry   DateTime?
 
-  applications Application[]
-  emails       Email[]
+  applications  Application[]
+  emails        Email[]
 }
 
 model Invite {
@@ -54,43 +53,32 @@ model Application {
   @@index([status])
 }
 
-//
-// 🔥 EMAIL SYSTEM
-//
-
 model Email {
   id          String   @id @default(cuid())
 
-  // ownership
   userId      String
   user        User     @relation(fields: [userId], references: [id])
 
-  // classification
   type        EmailType   @default(OUTBOUND)
   status      EmailStatus @default(DRAFT)
 
-  // email data
   to          String
   from        String?
   subject     String
   body        String
   snippet     String?
 
-  // AI lead metadata
   company     String?
   website     String?
   location    String?
 
-  // scheduling
   scheduledAt DateTime?
   sentAt      DateTime?
 
-  // follow-up linkage
   parentId    String?
   parent      Email?   @relation("FollowUp", fields: [parentId], references: [id])
   followUps   Email[]  @relation("FollowUp")
 
-  // attachments
   attachments Attachment[]
 
   createdAt   DateTime @default(now())
@@ -112,10 +100,6 @@ model Attachment {
 
   createdAt DateTime @default(now())
 }
-
-//
-// 🔥 ENUMS
-//
 
 enum Role {
   USER
