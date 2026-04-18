@@ -13,6 +13,10 @@ declare module "next-auth" {
       status: "PENDING" | "APPROVED" | "DENIED" | "NONE";
       allowed: boolean;
     };
+
+    // 🔥 ADD THIS (FIX FOR YOUR ERROR)
+    accessToken?: string;
+    refreshToken?: string;
   }
 }
 
@@ -21,8 +25,10 @@ declare module "next-auth/jwt" {
     id: string;
     email?: string;
     role: "USER" | "ADMIN";
-	accessToken?: string;
+
+    // 🔥 ADD THESE TOO
+    accessToken?: string;
     refreshToken?: string;
-    accessTokenExpires?: number;
+    accessTokenExpires?: number | null;
   }
 }
