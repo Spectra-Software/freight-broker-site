@@ -23,10 +23,12 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
+    // bulk send
     if (body.ids && Array.isArray(body.ids)) {
       return await handleDraftSend(session, body.ids);
     }
 
+    // manual send
     const { to, subject, message } = body;
 
     if (!to || !subject || !message) {
@@ -46,6 +48,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, result });
   } catch (err) {
     console.error("SEND ROUTE ERROR:", err);
+
     return NextResponse.json(
       { success: false, error: "Failed to send email" },
       { status: 500 }
@@ -86,9 +89,9 @@ async function handleDraftSend(session: any, ids: string[]) {
         data: { status: "SENDING" },
       });
 
-      // ✅ FIXED TYPE HERE
+      // ✅ FIX: normalize null → undefined (THIS WAS YOUR BUILD ERROR)
       const attachments: AttachmentInput[] = (draft.attachments ?? []).map(
-        (a: AttachmentInput) => ({
+        (a) => ({
           name: a.name,
           url: a.url ?? undefined,
           mimeType: a.mimeType ?? undefined,
@@ -123,7 +126,7 @@ async function handleDraftSend(session: any, ids: string[]) {
           scheduledAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
           parentId: draft.id,
           attachments: {
-            create: (draft.attachments ?? []).map((a: AttachmentInput) => ({
+            create: (draft.attachments ?? []).map((a) => ({
               name: a.name,
               url: a.url ?? null,
               mimeType: a.mimeType ?? null,
