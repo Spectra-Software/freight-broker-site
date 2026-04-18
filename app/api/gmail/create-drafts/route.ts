@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       );
     }
 
-    let userId = (session.user as any).id as string | undefined;
+    let userId: string | null = (session.user as any).id ?? null;
 
     if (!userId) {
       const dbUser = await prisma.user.findUnique({
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
         select: { id: true },
       });
 
-      if (!dbUser) {
+      if (!dbUser?.id) {
         return NextResponse.json(
           { error: "User not found" },
           { status: 404 }
@@ -51,6 +51,14 @@ export async function POST(req: Request) {
       }
 
       userId = dbUser.id;
+    }
+
+    // 🔥 HARD GUARD (TypeScript + runtime safety)
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Missing userId" },
+        { status: 400 }
+      );
     }
 
     return await createDraftsForUser(req, userId);
