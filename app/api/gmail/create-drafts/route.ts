@@ -91,7 +91,7 @@ async function createDraftsForUser(req: Request, userId: string) {
   const skipped: Array<{ lead: LeadDraftInput; reason: string }> = [];
 
   const createdEmails = await prisma.$transaction(
-    async (tx: Prisma.TransactionClient) => {
+    async (tx: Prisma.TransactionClient & typeof prisma) => {
       const results: any[] = [];
 
       for (const lead of leads) {
