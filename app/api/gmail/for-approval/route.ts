@@ -14,7 +14,7 @@ export async function GET() {
       );
     }
 
-    let userId = (session.user as any).id as string | undefined;
+    let userId: string | null = (session.user as any).id ?? null;
 
     if (!userId) {
       const dbUser = await prisma.user.findUnique({
@@ -22,7 +22,7 @@ export async function GET() {
         select: { id: true },
       });
 
-      if (!dbUser) {
+      if (!dbUser?.id) {
         return NextResponse.json(
           { error: "User not found" },
           { status: 404 }
@@ -45,7 +45,7 @@ export async function GET() {
       },
     });
 
-    const formatted = drafts.map((email) => ({
+    const formatted = drafts.map((email: any) => ({
       id: email.id,
       to: email.to,
       from: email.from,
@@ -57,20 +57,12 @@ export async function GET() {
       location: email.location,
       createdAt: email.createdAt,
 
-      // ✅ FIXED HERE TOO
-      attachments: email.attachments.map(
-        (a: {
-          id: string;
-          name: string;
-          url: string | null;
-          mimeType: string | null;
-        }) => ({
-          id: a.id,
-          name: a.name,
-          url: a.url,
-          mimeType: a.mimeType,
-        })
-      ),
+      attachments: (email.attachments ?? []).map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        url: a.url,
+        mimeType: a.mimeType,
+      })),
     }));
 
     return NextResponse.json({

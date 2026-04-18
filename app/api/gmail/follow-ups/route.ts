@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/google/gmail";
 
-// 🔐 optional: protect route
 const CRON_SECRET = process.env.CRON_SECRET;
 
 export async function GET(req: Request) {
   try {
-    // 🔐 verify cron (recommended)
+    // ==========================
+    // 🔐 AUTH CHECK (OPTIONAL)
+    // ==========================
     const authHeader = req.headers.get("authorization");
 
     if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
@@ -17,9 +18,11 @@ export async function GET(req: Request) {
       );
     }
 
-    // 🔥 find due follow-ups
     const now = new Date();
 
+    // ==========================
+    // 🔥 FETCH DUE FOLLOW-UPS
+    // ==========================
     const followUps = await prisma.email.findMany({
       where: {
         status: "FOLLOW_UP",
@@ -31,16 +34,21 @@ export async function GET(req: Request) {
         user: true,
         attachments: true,
       },
+      take: 20,
     });
 
-    const results = [];
+    const results: any[] = [];
 
+    // ==========================
+    // 🔥 PROCESS EMAILS
+    // ==========================
     for (const email of followUps) {
       try {
-        // ⚠️ IMPORTANT:
-        // we need user's accessToken → currently not stored
-        // so for now we SKIP unless you store tokens
-        if (!(email.user as any)?.accessToken) {
+        const user = email.user as any;
+
+        const accessToken = user?.accessToken;
+
+        if (!accessToken) {
           results.push({
             id: email.id,
             status: "skipped_no_token",
@@ -48,15 +56,31 @@ export async function GET(req: Request) {
           continue;
         }
 
+        // ==========================
+        // 📎 SAFE ATTACHMENTS
+        // ==========================
+        const attachments = (email.attachments ?? []).map(
+          (a: any) => ({
+            name: a.name,
+            url: a.url ?? undefined,
+            mimeType: a.mimeType ?? undefined,
+          })
+        );
+
+        // ==========================
+        // 📧 SEND EMAIL
+        // ==========================
         await sendEmail({
-          accessToken: (email.user as any).accessToken,
+          accessToken,
           to: email.to,
           subject: email.subject,
           body: email.body,
-          attachments: email.attachments,
+          attachments,
         });
 
-        // mark as sent
+        // ==========================
+        // ✅ MARK AS SENT
+        // ==========================
         await prisma.email.update({
           where: { id: email.id },
           data: {
@@ -65,10 +89,17 @@ export async function GET(req: Request) {
           },
         });
 
-        results.push({ id: email.id, status: "sent" });
-      } catch (err) {
-        console.error("CRON SEND ERROR:", err);
-        results.push({ id: email.id, status: "failed" });
+        results.push({
+          id: email.id,
+          status: "sent",
+        });
+      } catch (err: any) {
+        console.error("FOLLOW-UP SEND ERROR:", err);
+
+        results.push({
+          id: email.id,
+          status: "failed",
+        });
       }
     }
 
@@ -78,12 +109,11 @@ export async function GET(req: Request) {
       results,
     });
   } catch (error: any) {
-    console.error("CRON ERROR:", error);
+    console.error("FOLLOW-UP ROUTE ERROR:", error);
 
     return NextResponse.json(
       {
-        error:
-          error?.message || "Cron failed",
+        error: error?.message || "Follow-up processing failed",
       },
       { status: 500 }
     );
