@@ -69,8 +69,8 @@ const handler = NextAuth({
 
         token.provider = account.provider;
         token.accessTokenExpires = account.expires_at
-          ? account.expires_at * 1000
-          : null;
+  ? account.expires_at * 1000
+  : undefined;
       }
 
       // ensure email exists
