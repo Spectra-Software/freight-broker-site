@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 
 type Attachment = {
@@ -54,8 +55,19 @@ function formatDate(value?: string) {
   return d.toLocaleString();
 }
 
+function getTabFromSearch(value: string | null): TabKey {
+  if (value === "sent") return "sent";
+  if (value === "approval") return "approval";
+  if (value === "followUp") return "followUp";
+  return "inbox";
+}
+
 export default function InboxPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("inbox");
+  const searchParams = useSearchParams();
+
+  const [activeTab, setActiveTab] = useState<TabKey>(() =>
+    getTabFromSearch(searchParams.get("tab"))
+  );
 
   const [inboxEmails, setInboxEmails] = useState<EmailItem[]>([]);
   const [sentEmails, setSentEmails] = useState<EmailItem[]>([]);
@@ -65,6 +77,10 @@ export default function InboxPage() {
   const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(getTabFromSearch(searchParams.get("tab")));
+  }, [searchParams]);
 
   const activeItems = useMemo(() => {
     switch (activeTab) {
@@ -131,7 +147,6 @@ export default function InboxPage() {
   const handleSendSelected = async () => {
     if (!selectedApprovalIds.length) return;
 
-    // Wire this to your send route once it exists.
     console.log("Send selected drafts:", selectedApprovalIds);
   };
 
@@ -153,7 +168,7 @@ export default function InboxPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={toggleSelectAllApproval}
-              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm border border-white/10"
+              className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
             >
               {approvalAllSelected ? "Unselect All" : "Select All"}
             </button>
@@ -161,7 +176,7 @@ export default function InboxPage() {
             <button
               onClick={handleSendSelected}
               disabled={!approvalSelectedCount}
-              className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm"
+              className="rounded-xl bg-blue-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               Send Selected ({approvalSelectedCount})
             </button>
@@ -174,10 +189,10 @@ export default function InboxPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 rounded-full text-sm border transition ${
+            className={`rounded-full border px-4 py-2 text-sm transition ${
               activeTab === tab.key
-                ? "bg-white text-black border-white"
-                : "bg-white/5 text-white border-white/10 hover:bg-white/10"
+                ? "border-white bg-white text-black"
+                : "border-white/10 bg-white/5 text-white hover:bg-white/10"
             }`}
           >
             {tab.label}
@@ -197,15 +212,13 @@ export default function InboxPage() {
       </div>
 
       <div className="flex flex-1 gap-4 overflow-hidden">
-        <div className="w-[380px] overflow-y-auto rounded-2xl bg-white/5 border border-white/10">
+        <div className="w-[380px] overflow-y-auto rounded-2xl border border-white/10 bg-white/5">
           {loading && (
             <div className="p-4 text-sm text-gray-400">Loading...</div>
           )}
 
           {!loading && activeItems.length === 0 && (
-            <div className="p-4 text-sm text-gray-400">
-              Nothing here yet.
-            </div>
+            <div className="p-4 text-sm text-gray-400">Nothing here yet.</div>
           )}
 
           {activeItems.map((email) => {
@@ -215,16 +228,16 @@ export default function InboxPage() {
               <div
                 key={email.id}
                 onClick={() => setSelectedEmail(email)}
-                className={`p-4 border-b border-white/5 cursor-pointer transition hover:bg-white/10 ${
+                className={`cursor-pointer border-b border-white/5 p-4 transition hover:bg-white/10 ${
                   isSelected ? "bg-white/10" : ""
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm text-white truncate">
+                    <p className="truncate text-sm font-semibold text-white">
                       {email.from || email.to || "Unknown"}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="mt-1 text-xs text-gray-400">
                       {formatDate(email.time || email.sentAt || email.scheduledAt)}
                     </p>
                   </div>
@@ -240,11 +253,11 @@ export default function InboxPage() {
                   )}
                 </div>
 
-                <p className="text-sm text-gray-200 mt-2 font-medium truncate">
+                <p className="mt-2 truncate text-sm font-medium text-gray-200">
                   {email.subject}
                 </p>
 
-                <p className="text-xs text-gray-400 truncate mt-1">
+                <p className="mt-1 truncate text-xs text-gray-400">
                   {email.snippet}
                 </p>
 
@@ -253,7 +266,7 @@ export default function InboxPage() {
                     {email.attachments.map((file) => (
                       <span
                         key={file.name}
-                        className="text-[11px] px-2 py-1 rounded-full bg-white/10 text-gray-200 border border-white/10"
+                        className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] text-gray-200"
                       >
                         {file.name}
                       </span>
@@ -265,21 +278,19 @@ export default function InboxPage() {
           })}
         </div>
 
-        <div className="flex-1 flex flex-col rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           {!selectedEmail ? (
-            <div className="m-auto text-gray-400">
-              Select an item to view
-            </div>
+            <div className="m-auto text-gray-400">Select an item to view</div>
           ) : (
             <>
-              <div className="p-5 border-b border-white/10">
+              <div className="border-b border-white/10 p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-lg font-semibold text-white">
                       {selectedEmail.subject}
                     </h2>
 
-                    <p className="text-sm text-gray-400 mt-1">
+                    <p className="mt-1 text-sm text-gray-400">
                       {selectedEmail.from
                         ? `From: ${selectedEmail.from}`
                         : selectedEmail.to
@@ -302,7 +313,7 @@ export default function InboxPage() {
                 </div>
               </div>
 
-              <div className="flex-1 p-5 overflow-y-auto text-sm text-gray-200">
+              <div className="flex-1 overflow-y-auto p-5 text-sm text-gray-200">
                 <ReactMarkdown>
                   {selectedEmail.body ||
                     selectedEmail.snippet ||
@@ -311,7 +322,7 @@ export default function InboxPage() {
 
                 {selectedEmail.attachments?.length ? (
                   <div className="mt-6">
-                    <h3 className="text-sm font-semibold text-white mb-2">
+                    <h3 className="mb-2 text-sm font-semibold text-white">
                       Attachments
                     </h3>
                     <div className="flex flex-wrap gap-2">
@@ -321,7 +332,7 @@ export default function InboxPage() {
                           href={file.url || "#"}
                           target={file.url ? "_blank" : undefined}
                           rel={file.url ? "noreferrer" : undefined}
-                          className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs text-white"
+                          className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs text-white hover:bg-white/20"
                         >
                           {file.name}
                         </a>
@@ -337,20 +348,23 @@ export default function InboxPage() {
                 ) : null}
               </div>
 
-              <div className="p-4 border-t border-white/10 flex gap-3">
-                <button className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm">
+              <div className="flex gap-3 border-t border-white/10 p-4">
+                <button className="rounded-xl bg-blue-500 px-4 py-2 text-sm text-white hover:bg-blue-600">
                   Reply
                 </button>
 
-                <button className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm">
+                <button className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20">
                   Forward
                 </button>
 
                 {activeTab === "approval" && (
                   <button
                     onClick={handleSendSelected}
-                    disabled={!selectedApprovalIds.includes(selectedEmail.id) && !approvalSelectedCount}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm"
+                    disabled={
+                      !selectedApprovalIds.includes(selectedEmail.id) &&
+                      !approvalSelectedCount
+                    }
+                    className="rounded-xl bg-emerald-500 px-4 py-2 text-sm text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Send Draft
                   </button>

@@ -3,41 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-type DraftAttachment = {
-  id: string;
-  name: string;
-  url: string | null;
-  mimeType: string | null;
-};
-
-type DraftRow = {
-  id: string;
-  to: string;
-  from: string | null;
-  subject: string;
-  body: string;
-  snippet: string | null;
-  company: string | null;
-  website: string | null;
-  location: string | null;
-  createdAt: Date;
-  attachments: DraftAttachment[];
-};
-
-type DraftEmail = {
-  id: string;
-  to: string;
-  from: string | null;
-  subject: string;
-  body: string;
-  snippet: string | null;
-  company: string | null;
-  website: string | null;
-  location: string | null;
-  createdAt: Date;
-  attachments: DraftAttachment[];
-};
-
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -65,10 +30,10 @@ export async function GET() {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const drafts = (await prisma.email.findMany({
+    const drafts = await prisma.email.findMany({
       where: {
         userId,
-        status: "DRAFT",
+        status: "DRAFT", // this is your approval queue for now
       },
       include: {
         attachments: true,
@@ -76,20 +41,30 @@ export async function GET() {
       orderBy: {
         createdAt: "desc",
       },
-    })) as DraftRow[];
+    });
 
-    const formatted: DraftEmail[] = drafts.map((email: DraftRow) => ({
+    const formatted = drafts.map((email) => ({
       id: email.id,
+
+      // show recipient cleanly
+      from: email.company || email.to,
       to: email.to,
-      from: email.from,
+
       subject: email.subject,
       body: email.body,
       snippet: email.snippet,
+
       company: email.company,
       website: email.website,
       location: email.location,
-      createdAt: email.createdAt,
-      attachments: (email.attachments ?? []).map((a: DraftAttachment) => ({
+
+      // 👇 THIS MATTERS FOR UI CONSISTENCY
+      status: "FOR_APPROVAL",
+
+      // 👇 Inbox UI uses time/sentAt/scheduledAt
+      time: email.createdAt,
+
+      attachments: (email.attachments || []).map((a) => ({
         id: a.id,
         name: a.name,
         url: a.url,

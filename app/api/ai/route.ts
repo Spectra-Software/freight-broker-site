@@ -5,9 +5,47 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY!,
 });
 
+type ExistingLead = {
+  company?: string;
+  website?: string;
+  email?: string;
+};
+
+function stripCodeFences(raw: string) {
+  let text = raw.trim();
+  text = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "");
+  text = text.replace(/\s*```$/i, "");
+  return text.trim();
+}
+
+function safeParseJSON(raw: string) {
+  const cleaned = stripCodeFences(raw);
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return null;
+  }
+
+  const jsonText = cleaned.slice(firstBrace, lastBrace + 1);
+
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   try {
-    const { message } = await req.json();
+    const body = await req.json().catch(() => ({}));
+
+    const message =
+      typeof body?.message === "string" ? body.message.trim() : "";
+
+    const existingLeads: ExistingLead[] = Array.isArray(body?.existingLeads)
+      ? body.existingLeads
+      : [];
 
     if (!message) {
       return NextResponse.json(
@@ -16,20 +54,41 @@ export async function POST(req: Request) {
       );
     }
 
+    const existingLeadText =
+      existingLeads.length > 0
+        ? existingLeads
+            .slice(0, 50)
+            .map((lead, index) => {
+              return `${index + 1}. ${lead.company || "Unknown company"} | ${lead.website || "No website"} | ${lead.email || "No email"}`;
+            })
+            .join("\n")
+        : "None";
+
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
-      temperature: 0.7,
+      temperature: 0.4,
       messages: [
         {
           role: "system",
           content: `
 You are an AI assistant for a freight broker SaaS platform.
 
-You must return JSON ONLY when generating leads.
+You help find shippers and generate outreach drafts.
 
-WHEN USER ASKS FOR SHIPPERS / LEADS:
-Return this exact JSON structure:
+Important rules:
+- Return JSON ONLY.
+- Do not wrap the response in markdown fences.
+- Do not repeat any lead that already appears in the existing leads list.
+- If the user asks for shippers/leads, return 3 to 10 leads when possible.
+- Keep outreach emails short, professional, and persuasive.
+- Mention freight / logistics value.
+- Email addresses should look realistic.
+- The reply field must be human-readable and concise.
 
+Existing leads already on screen:
+${existingLeadText}
+
+If this is a lead request, return exactly this structure:
 {
   "reply": "clean formatted summary for UI",
   "leads": [
@@ -44,7 +103,7 @@ Return this exact JSON structure:
         "attachments": [
           {
             "name": "capabilities.pdf",
-            "type": "application/pdf"
+            "mimeType": "application/pdf"
           }
         ]
       }
@@ -52,20 +111,11 @@ Return this exact JSON structure:
   ]
 }
 
-RULES:
-- Always include at least 3-10 leads when possible
-- Emails should be realistic formats
-- Keep outreach emails short, professional, and persuasive
-- Mention freight/logistics value
-- DO NOT include explanations outside JSON
-- reply field should still be human-readable summary
-
-IF NOT A LEAD REQUEST:
-Return:
+If this is not a lead request, return:
 {
   "reply": "normal formatted answer"
 }
-`,
+          `.trim(),
         },
         {
           role: "user",
@@ -75,29 +125,27 @@ Return:
     });
 
     const raw =
-      completion.choices?.[0]?.message?.content?.trim() ||
-      "";
+      completion.choices?.[0]?.message?.content?.trim() || "";
 
-    let parsed: any = null;
+    const parsed = safeParseJSON(raw);
 
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      // fallback if model returns text instead of JSON
-      return NextResponse.json({
-        reply: raw || "No response from AI",
-      });
+    if (parsed && typeof parsed === "object") {
+      if (typeof parsed.reply !== "string") {
+        parsed.reply = raw || "No response from AI";
+      }
+
+      return NextResponse.json(parsed);
     }
 
-    return NextResponse.json(parsed);
+    return NextResponse.json({
+      reply: raw || "No response from AI",
+    });
   } catch (error: any) {
     console.error("GROQ ERROR:", error);
 
     return NextResponse.json(
       {
-        error:
-          error?.message ||
-          "AI failed to respond. Check server logs.",
+        error: error?.message || "AI failed to respond. Check server logs.",
       },
       { status: 500 }
     );

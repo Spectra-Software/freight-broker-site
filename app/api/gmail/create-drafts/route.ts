@@ -7,6 +7,7 @@ type DraftAttachmentInput = {
   name: string;
   url?: string | null;
   mimeType?: string | null;
+  type?: string | null;
 };
 
 type LeadDraftInput = {
@@ -43,6 +44,10 @@ type CreatedDraft = {
   sentAt: Date | null;
   attachments: CreatedAttachment[];
 };
+
+function normalize(value?: string | null) {
+  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 export async function POST(req: Request) {
   try {
@@ -93,6 +98,28 @@ async function createDraftsForUser(req: Request, userId: string) {
     return NextResponse.json({ error: "No leads provided" }, { status: 400 });
   }
 
+  const existingDrafts = await prisma.email.findMany({
+    where: {
+      userId,
+      status: "DRAFT",
+    },
+    select: {
+      to: true,
+      subject: true,
+      company: true,
+    },
+  });
+
+  const seen = new Set(
+    existingDrafts.map((draft) =>
+      [
+        normalize(draft.to),
+        normalize(draft.subject),
+        normalize(draft.company),
+      ].join("|")
+    )
+  );
+
   const skipped: Array<{ lead: LeadDraftInput; reason: string }> = [];
   const createdEmails: CreatedDraft[] = [];
 
@@ -116,7 +143,20 @@ async function createDraftsForUser(req: Request, userId: string) {
       continue;
     }
 
-    const attachments =
+    const key = [
+      normalize(email),
+      normalize(subject),
+      normalize(lead.company),
+    ].join("|");
+
+    if (seen.has(key)) {
+      skipped.push({ lead, reason: "Duplicate draft already exists" });
+      continue;
+    }
+
+    seen.add(key);
+
+    const attachmentInputs =
       lead.draft?.attachments?.length
         ? lead.draft.attachments
         : lead.attachments || [];
@@ -136,13 +176,17 @@ async function createDraftsForUser(req: Request, userId: string) {
         location: lead.location?.trim() || null,
         scheduledAt: null,
         sentAt: null,
-        attachments: {
-          create: attachments.map((a: DraftAttachmentInput) => ({
-            name: a.name,
-            url: a.url ?? null,
-            mimeType: a.mimeType ?? null,
-          })),
-        },
+        ...(attachmentInputs.length > 0
+          ? {
+              attachments: {
+                create: attachmentInputs.map((a: DraftAttachmentInput) => ({
+                  name: a.name,
+                  url: a.url ?? null,
+                  mimeType: a.mimeType ?? a.type ?? null,
+                })),
+              },
+            }
+          : {}),
       },
       include: {
         attachments: true,
