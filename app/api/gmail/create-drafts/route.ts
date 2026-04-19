@@ -137,6 +137,8 @@ async function createDraftsForUser(req: Request, userId: string) {
     )
   );
 
+  console.log("CREATE DRAFTS request: userId=", userId, "leadsCount=", leads.length);
+
   const skipped: Array<{ lead: LeadDraftInput; reason: string }> = [];
   const createdEmails: CreatedDraft[] = [];
 
@@ -172,40 +174,49 @@ async function createDraftsForUser(req: Request, userId: string) {
     const attachmentInputs =
       lead.draft?.attachments?.length ? lead.draft.attachments : lead.attachments || [];
 
-    const created = await prisma.email.create({
-      data: {
-        userId,
-        type: "OUTBOUND",
-        status: "DRAFT",
-        to: email,
-        from: null,
-        subject,
-        body: bodyText,
-        snippet: bodyText.slice(0, 180),
-        company: lead.company?.trim() || null,
-        website: lead.website?.trim() || null,
-        location: lead.location?.trim() || null,
-        scheduledAt: null,
-        sentAt: null,
-        ...(attachmentInputs.length > 0
-          ? {
-              attachments: {
-                create: attachmentInputs.map((a: DraftAttachmentInput) => ({
-                  name: a.name,
-                  url: a.url ?? null,
-                  mimeType: a.mimeType ?? a.type ?? null,
-                })),
-              },
-            }
-          : {}),
-      },
-      include: {
-        attachments: true,
-      },
-    });
+    try {
+      const created = await prisma.email.create({
+        data: {
+          userId,
+          type: "OUTBOUND",
+          status: "DRAFT",
+          to: email,
+          from: null,
+          subject,
+          body: bodyText,
+          snippet: bodyText.slice(0, 180),
+          company: lead.company?.trim() || null,
+          website: lead.website?.trim() || null,
+          location: lead.location?.trim() || null,
+          scheduledAt: null,
+          sentAt: null,
+          ...(attachmentInputs.length > 0
+            ? {
+                attachments: {
+                  create: attachmentInputs.map((a: DraftAttachmentInput) => ({
+                    name: a.name,
+                    url: a.url ?? null,
+                    mimeType: a.mimeType ?? a.type ?? null,
+                  })),
+                },
+              }
+            : {}),
+        },
+        include: {
+          attachments: true,
+        },
+      });
 
-    createdEmails.push(created as CreatedDraft);
+      createdEmails.push(created as CreatedDraft);
+    } catch (e: unknown) {
+      console.error("CREATE DRAFT ERROR for lead:", { email, subject }, e);
+      skipped.push({ lead, reason: e instanceof Error ? e.message : String(e) });
+      // continue processing other leads
+      continue;
+    }
   }
+
+  console.log("CREATE DRAFTS result: created=", createdEmails.length, "skipped=", skipped.length);
 
   return NextResponse.json({
     ok: true,
