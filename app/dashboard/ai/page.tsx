@@ -277,8 +277,7 @@ export default function AIPage() {
         }
       }
 
-      router.push("/inbox?tab=approval");
-      router.refresh();
+      // Do not navigate away — just update counter and previews in-place
     } catch (err) {
       console.error(err);
 
@@ -295,8 +294,8 @@ export default function AIPage() {
   };
 
   const goToApprovals = () => {
-    router.push("/inbox?tab=approval");
-    router.refresh();
+    // Navigate to the inbox where the user can select the "For Approval" tab
+    router.push("/dashboard/inbox");
   };
 
   return (
