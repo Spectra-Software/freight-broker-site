@@ -96,7 +96,18 @@ export async function POST(req: Request) {
 }
 
 async function createDraftsForUser(req: Request, userId: string) {
-  const body: unknown = await req.json().catch(() => null);
+  // Read raw body for better diagnostics and parse safely
+  const rawText: string | null = await req.text().catch(() => null);
+  console.log("CREATE DRAFTS RAW BODY:", rawText ? rawText.slice(0, 2000) : "<empty>");
+
+  let body: unknown = null;
+  try {
+    body = rawText ? JSON.parse(rawText) : null;
+  } catch (e) {
+    // If JSON.parse fails, leave body as null and continue to return an error later
+    console.error("CREATE DRAFTS: failed to parse JSON body", e);
+    body = null;
+  }
 
   const leads: LeadDraftInput[] =
     body &&
@@ -131,6 +142,8 @@ async function createDraftsForUser(req: Request, userId: string) {
     },
   });
 
+  console.log("CREATE DRAFTS: existingDrafts.count=", existingDrafts.length, "sample=", existingDrafts.slice(0,5));
+
   const seen = new Set<string>(
     existingDrafts.map((draft: ExistingDraftRow) =>
       [normalize(draft.to), normalize(draft.subject), normalize(draft.company)].join("|")
@@ -148,6 +161,7 @@ async function createDraftsForUser(req: Request, userId: string) {
     const bodyText = lead.draft?.body?.trim();
 
     if (!email) {
+      console.log("CREATE DRAFTS: skipping lead - missing email", { lead });
       skipped.push({ lead, reason: "Missing email" });
       continue;
     }
@@ -165,6 +179,7 @@ async function createDraftsForUser(req: Request, userId: string) {
     const key = [normalize(email), normalize(subject), normalize(lead.company)].join("|");
 
     if (seen.has(key)) {
+      console.log("CREATE DRAFTS: skipping lead - duplicate", { key, lead });
       skipped.push({ lead, reason: "Duplicate draft already exists" });
       continue;
     }
@@ -218,6 +233,7 @@ async function createDraftsForUser(req: Request, userId: string) {
         },
       });
 
+      console.log("CREATE DRAFT: created id=", created.id);
       createdEmails.push(created as CreatedDraft);
     } catch (e: unknown) {
       console.error("CREATE DRAFT ERROR (with attachments) for lead:", { email, subject }, e);
@@ -242,6 +258,7 @@ async function createDraftsForUser(req: Request, userId: string) {
           },
         });
 
+        console.log("CREATE DRAFT: created fallback id=", createdFallback.id);
         createdEmails.push(createdFallback as CreatedDraft);
 
         skipped.push({ lead, reason: `Attachments failed to save: ${e instanceof Error ? e.message : String(e)}` });
