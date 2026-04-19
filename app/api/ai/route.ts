@@ -17,21 +17,57 @@ function stripCodeFences(raw: string) {
   text = text.replace(/\s*```$/i, "");
   return text.trim();
 }
-
-function safeParseJSON(raw: string) {
+function extractJsonText(raw: string) {
   const cleaned = stripCodeFences(raw);
-  const firstBrace = cleaned.indexOf("{");
-  const lastBrace = cleaned.lastIndexOf("}");
+  const start = cleaned.search(/[\{\[]/);
+  if (start === -1) return null;
 
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-    return null;
+  const open = cleaned[start];
+  const close = open === "{" ? "}" : "]";
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) {
+        return cleaned.slice(start, i + 1);
+      }
+    }
   }
 
-  const jsonText = cleaned.slice(firstBrace, lastBrace + 1);
+  return null;
+}
 
+function safeParseJSON(raw: string) {
   try {
+    const jsonText = extractJsonText(raw);
+    if (!jsonText) return null;
+
     return JSON.parse(jsonText);
-  } catch {
+  } catch (e) {
     return null;
   }
 }
@@ -91,6 +127,8 @@ Important rules:
 - Email addresses should look realistic.
 - The reply field must be human-readable and concise.
 
+Important: ALWAYS return valid JSON. If you cannot produce valid JSON for any reason, return a JSON object with a single "reply" field explaining the issue. Do not output anything that is not parseable JSON. Ensure strings are properly quoted and do not include trailing commentary.
+
 Existing leads already on screen:
 ${existingLeadText}
 
@@ -131,6 +169,7 @@ If this is not a lead request, return:
     });
 
     const raw = completion.choices?.[0]?.message?.content?.trim() || "";
+    console.log("AI RAW RESPONSE:", raw);
     const parsed = safeParseJSON(raw);
 
     if (parsed && typeof parsed === "object") {

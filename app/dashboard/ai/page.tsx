@@ -119,6 +119,10 @@ export default function AIPage() {
 
   const [drafts, setDrafts] = useState<CreatedDraft[]>([]);
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  const [lastCreateStats, setLastCreateStats] = useState<
+    | { createdCount: number; skippedCount: number; skippedReasons: string[] }
+    | null
+  >(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -222,20 +226,54 @@ export default function AIPage() {
           body: JSON.stringify({ leads: incomingLeads }),
         });
 
-        const createData: { drafts?: CreatedDraft[]; error?: string } = await createRes.json();
+        const createData: { drafts?: CreatedDraft[]; error?: string; createdCount?: number; skipped?: any[] } =
+          await createRes.json();
 
         if (!createRes.ok) {
           console.error("Draft creation failed:", createData);
           return;
         }
 
+        // Log the raw response for easier debugging when drafts are not created
+        console.log("/api/gmail/create-drafts response:", createData);
+
         const createdDrafts: CreatedDraft[] = Array.isArray(createData.drafts)
           ? createData.drafts
           : [];
 
+        const createdCount = typeof createData.createdCount === "number" ? createData.createdCount : createdDrafts.length;
+        const skippedArr = Array.isArray(createData.skipped) ? createData.skipped : [];
+
         if (createdDrafts.length > 0) {
           setDrafts((prev) => mergeUniqueDrafts(prev, createdDrafts));
           setSelectedDraftId(draftKeyFromCreatedDraft(createdDrafts[0]));
+        } else {
+          // If no drafts were created, show a clear assistant message with server-provided reasons (if any)
+          const skipped = skippedArr;
+
+          // Update UI stats for created/skipped
+          setLastCreateStats({
+            createdCount,
+            skippedCount: skipped.length,
+            skippedReasons: skipped.map((s: any) => s.reason || "unknown"),
+          });
+
+          if (skipped.length > 0) {
+            const reasons = skipped.map((s: any, i: number) => `${i + 1}. ${s.reason || "unknown"}`).join("; ");
+
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: `No drafts were created. ${skipped.length} lead(s) were skipped: ${reasons}`,
+              },
+            ]);
+          } else {
+            setMessages((prev) => [
+              ...prev,
+              { role: "assistant", content: "No drafts were created by the server." },
+            ]);
+          }
         }
       }
 
@@ -265,8 +303,22 @@ export default function AIPage() {
     <div className="min-h-[calc(100vh-6rem)] w-full">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">AI Assistant</h1>
-        <div className="text-sm text-gray-400">
-          {uniqueDrafts.length} draft{uniqueDrafts.length === 1 ? "" : "s"} made
+        <div>
+          <div className="text-sm text-gray-400">
+            {uniqueDrafts.length} draft{uniqueDrafts.length === 1 ? "" : "s"} made
+          </div>
+
+          {lastCreateStats && (
+            <div className="mt-1 text-xs text-gray-400">
+              Created: {lastCreateStats.createdCount} • Skipped: {lastCreateStats.skippedCount}
+              {lastCreateStats.skippedCount > 0 && (
+                <div className="mt-1 text-[11px] text-gray-300">
+                  {lastCreateStats.skippedReasons.slice(0, 3).join("; ")}
+                  {lastCreateStats.skippedReasons.length > 3 ? "..." : ""}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
