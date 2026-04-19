@@ -3,9 +3,20 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-export async function GET(_req: Request, { params }: { params: { filename?: string } }) {
+export async function GET(_req: Request, context: any) {
   try {
-    const filename = params?.filename;
+    // context.params may be a Promise (some Next versions) or an object
+    let filename: string | undefined;
+    const params = context?.params;
+    if (params) {
+      if (typeof params.then === "function") {
+        const resolved = await params;
+        filename = resolved?.filename;
+      } else {
+        filename = params?.filename;
+      }
+    }
+
     if (!filename) return NextResponse.json({ error: "Missing filename" }, { status: 400 });
 
     // First, try public/uploads (for local/dev)
