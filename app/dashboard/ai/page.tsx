@@ -195,16 +195,32 @@ export default function AIPage() {
 
   async function handleFileUpload(file: File) {
     try {
-      const base64 = await readFileAsBase64(file);
-
+      // Try binary upload first (smaller payload and more reliable)
       const res = await fetch("/api/uploads", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, mimeType: file.type || "application/pdf", data: base64 }),
+        headers: {
+          "x-file-name": file.name,
+          "x-file-mime": file.type || "application/pdf",
+        },
+        body: file,
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Upload failed");
+      let data: any = {};
+
+      // If binary mode isn't supported by the server, fall back to base64 JSON
+      if (res.status === 415 || res.status === 400) {
+        const base64 = await readFileAsBase64(file);
+        const res2 = await fetch("/api/uploads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: file.name, mimeType: file.type || "application/pdf", data: base64 }),
+        });
+        data = await res2.json();
+        if (!res2.ok) throw new Error(data?.error || "Upload failed");
+      } else {
+        data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "Upload failed");
+      }
 
       const fullUrl = (data.url && window?.location ? `${window.location.origin}${data.url}` : data.url) as string;
 
@@ -412,24 +428,28 @@ export default function AIPage() {
               placeholder="Ask AI to find leads, draft emails..."
             />
 
-            <input
-              type="file"
-              accept="application/pdf"
-              multiple
-              onChange={async (e) => {
-                const files = Array.from(e.target.files || []);
-                if (!files.length) return;
+            <div className="flex items-center gap-2">
+              <label className="inline-block cursor-pointer rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white hover:bg-white/10">
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  multiple
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (!files.length) return;
 
-                // upload each file sequentially to avoid overwhelming the server
-                for (const file of files) {
-                  await handleFileUpload(file);
-                }
+                    for (const file of files) {
+                      await handleFileUpload(file);
+                    }
 
-                // clear input
-                e.currentTarget.value = "";
-              }}
-              className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white"
-            />
+                    // clear input
+                    e.currentTarget.value = "";
+                  }}
+                  className="hidden"
+                />
+                Upload PDFs
+              </label>
+            </div>
 
             <button
               onClick={sendMessage}
