@@ -415,10 +415,16 @@ export default function AIPage() {
             <input
               type="file"
               accept="application/pdf"
+              multiple
               onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                await handleFileUpload(file);
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+
+                // upload each file sequentially to avoid overwhelming the server
+                for (const file of files) {
+                  await handleFileUpload(file);
+                }
+
                 // clear input
                 e.currentTarget.value = "";
               }}
