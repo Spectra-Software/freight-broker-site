@@ -122,8 +122,9 @@ Important rules:
 - Do not wrap the response in markdown fences.
 - Do not repeat any lead that already appears in the existing leads list.
 - If the user asks for shippers/leads, return 3 to 10 leads when possible.
-- Keep outreach emails short, professional, and persuasive.
-- Mention freight / logistics value.
+- Keep outreach emails short, professional, and persuasive. Format them with a brief greeting, 1-2 short paragraphs stating the value for freight/logistics, a clear call-to-action, and a professional signature (name + company).
+- Use concise subject lines (4-10 words) that clearly reference freight/logistics.
+- Mention freight / logistics value and a clear next step.
 - Email addresses should look realistic.
 - The reply field must be human-readable and concise.
 
@@ -143,7 +144,7 @@ If this is a lead request, return exactly this structure:
       "location": "City, State",
       "draft": {
         "subject": "Email subject line",
-        "body": "Full outreach email",
+        "body": "Full outreach email (greeting, 1-2 short paragraphs, CTA, signature)",
         "attachments": [
           {
             "name": "capabilities.pdf",

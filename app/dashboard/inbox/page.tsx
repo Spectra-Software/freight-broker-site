@@ -131,9 +131,57 @@ export default function InboxPage() {
   }, [activeTab]);
 
   useEffect(() => {
+    // Reset selection when user switches tabs, but do NOT reset whenever the items list updates
+    // (that caused selection to flash away when the approval list refreshed periodically).
     setSelectedApprovalIds([]);
     setSelectedEmail(activeItems[0] || null);
-  }, [activeTab, activeItems]);
+  }, [activeTab]);
+
+  // Delete helpers
+  const handleDeleteSelected = async () => {
+    if (!selectedApprovalIds.length) return;
+
+    try {
+      const res = await fetch("/api/gmail/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedApprovalIds }),
+      });
+
+      const data: { error?: string } = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete drafts");
+
+      setApprovalEmails((prev) => prev.filter((e) => !selectedApprovalIds.includes(e.id)));
+      // clear selection and selected email if it was deleted
+      const wasSelectedDeleted = selectedEmail && selectedApprovalIds.includes(selectedEmail.id);
+      setSelectedApprovalIds([]);
+      if (wasSelectedDeleted) {
+        setSelectedEmail(null);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteSingle = async (id?: string) => {
+    if (!id) return;
+    try {
+      const res = await fetch("/api/gmail/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id] }),
+      });
+
+      const data: { error?: string } = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete draft");
+
+      setApprovalEmails((prev) => prev.filter((e) => e.id !== id));
+      if (selectedEmail?.id === id) setSelectedEmail(null);
+      setSelectedApprovalIds((prev) => prev.filter((x) => x !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const approvalSelectedCount = selectedApprovalIds.length;
   const approvalAllSelected =
@@ -206,6 +254,14 @@ export default function InboxPage() {
               className="rounded-xl bg-blue-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               Send Selected ({approvalSelectedCount})
+            </button>
+
+            <button
+              onClick={handleDeleteSelected}
+              disabled={!approvalSelectedCount}
+              className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Delete Selected ({approvalSelectedCount})
             </button>
           </div>
         )}
@@ -385,6 +441,15 @@ export default function InboxPage() {
                     className="rounded-xl bg-emerald-500 px-4 py-2 text-sm text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Send Draft
+                  </button>
+                )}
+
+                {activeTab === "approval" && (
+                  <button
+                    onClick={() => handleDeleteSingle(selectedEmail?.id)}
+                    className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white hover:bg-rose-600"
+                  >
+                    Delete Draft
                   </button>
                 )}
               </div>

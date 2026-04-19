@@ -116,6 +116,7 @@ export default function AIPage() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploadedAttachments, setUploadedAttachments] = useState<CreatedAttachment[]>([]);
 
   const [drafts, setDrafts] = useState<CreatedDraft[]>([]);
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
@@ -177,6 +178,47 @@ export default function AIPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // Upload helpers
+  async function readFileAsBase64(file: File) {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // strip off data:*/*;base64,
+        const idx = result.indexOf("base64,");
+        resolve(idx === -1 ? result : result.slice(idx + 7));
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleFileUpload(file: File) {
+    try {
+      const base64 = await readFileAsBase64(file);
+
+      const res = await fetch("/api/uploads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, mimeType: file.type || "application/pdf", data: base64 }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Upload failed");
+
+      const fullUrl = (data.url && window?.location ? `${window.location.origin}${data.url}` : data.url) as string;
+
+      setUploadedAttachments((prev) => [
+        ...prev,
+        { name: data.name || file.name, url: fullUrl, mimeType: data.mimeType || file.type },
+      ]);
+    } catch (err) {
+      console.error("Upload error:", err);
+      // minimal user feedback: add assistant message
+      setMessages((prev) => [...prev, { role: "assistant", content: "Failed to upload attachment." }]);
+    }
+  }
+
   const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
@@ -218,6 +260,18 @@ export default function AIPage() {
       const incomingLeads = Array.isArray(aiData.leads) ? dedupeLeads(aiData.leads) : [];
 
       if (incomingLeads.length > 0) {
+        // If the user uploaded attachments, attach them to each generated lead draft
+        if (uploadedAttachments.length > 0) {
+          for (const lead of incomingLeads) {
+            if (!lead.draft) lead.draft = {};
+            const existing = Array.isArray(lead.draft.attachments) ? lead.draft.attachments : [];
+
+            lead.draft.attachments = [
+              ...existing,
+              ...uploadedAttachments.map((a) => ({ name: a.name, url: a.url ?? undefined, mimeType: a.mimeType })),
+            ];
+          }
+        }
         const createRes = await fetch("/api/gmail/create-drafts", {
           method: "POST",
           headers: {
@@ -358,6 +412,19 @@ export default function AIPage() {
               placeholder="Ask AI to find leads, draft emails..."
             />
 
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                await handleFileUpload(file);
+                // clear input
+                e.currentTarget.value = "";
+              }}
+              className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white"
+            />
+
             <button
               onClick={sendMessage}
               disabled={loading}
@@ -366,6 +433,30 @@ export default function AIPage() {
               Send
             </button>
           </div>
+
+          {uploadedAttachments.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              <div className="text-xs text-gray-400">Uploaded attachments</div>
+              <div className="flex flex-wrap gap-2">
+                {uploadedAttachments.map((a, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-gray-200"
+                  >
+                    <span className="truncate max-w-[12rem]">{a.name}</span>
+                    <button
+                      onClick={() =>
+                        setUploadedAttachments((prev) => prev.filter((_, idx) => idx !== i))
+                      }
+                      className="ml-1 text-[11px] text-rose-400"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col rounded-3xl border border-white/10 bg-white/5 p-4 shadow-lg">
