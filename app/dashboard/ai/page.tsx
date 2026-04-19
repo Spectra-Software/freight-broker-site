@@ -260,6 +260,7 @@ export default function AIPage() {
         body: JSON.stringify({
           message: trimmed,
           existingLeads,
+          attachments: uploadedAttachments,
         }),
       });
 

@@ -173,16 +173,17 @@ If this is not a lead request, return:
     console.log("AI RAW RESPONSE:", raw);
     const parsed = safeParseJSON(raw);
 
-    if (parsed && typeof parsed === "object") {
-      if (typeof (parsed as { reply?: unknown }).reply !== "string") {
-        (parsed as { reply: string }).reply = raw || "No response from AI";
-      }
-
-      return NextResponse.json(parsed);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return NextResponse.json({
+        reply: typeof (parsed as any).reply === "string" ? (parsed as any).reply : "Done.",
+        leads: Array.isArray((parsed as any).leads) ? (parsed as any).leads : [],
+      });
     }
 
+    // Fallback: ALWAYS include leads (empty array when AI response couldn't be parsed)
     return NextResponse.json({
       reply: raw || "No response from AI",
+      leads: [],
     });
   } catch (error: unknown) {
     console.error("GROQ ERROR:", error);
