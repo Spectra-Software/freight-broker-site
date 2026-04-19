@@ -272,6 +272,62 @@ async function createDraftsForUser(req: Request, userId: string) {
 
   console.log("CREATE DRAFTS result: created=", createdEmails.length, "skipped=", skipped.length);
 
+  // If nothing was created, attempt a lenient fallback: create drafts without attachments and
+  // without duplicate checks. This helps recover when nested attachment creation or strict
+  // duplicate detection prevents creating any drafts. We log extensively so this fallback is
+  // visible in server logs and can be removed later.
+  if (createdEmails.length === 0 && skipped.length > 0) {
+    console.log("CREATE DRAFTS: no drafts created, attempting lenient fallback for skipped leads", {
+      skippedCount: skipped.length,
+    });
+
+    const newlyCreated: CreatedDraft[] = [];
+
+    for (const s of skipped.slice()) {
+      const lead = s.lead as LeadDraftInput;
+      const email = lead.email?.trim();
+      const subject = lead.draft?.subject?.trim();
+      const bodyText = lead.draft?.body?.trim();
+
+      if (!email || !subject || !bodyText) {
+        // cannot create without required fields
+        continue;
+      }
+
+      try {
+        const created = await prisma.email.create({
+          data: {
+            userId,
+            type: "OUTBOUND",
+            status: "DRAFT",
+            to: email,
+            from: null,
+            subject,
+            body: bodyText,
+            snippet: bodyText.slice(0, 180),
+            company: lead.company?.trim() || null,
+            website: lead.website?.trim() || null,
+            location: lead.location?.trim() || null,
+            scheduledAt: null,
+            sentAt: null,
+          },
+        });
+
+        newlyCreated.push(created as CreatedDraft);
+        // remove this skipped entry
+        const idx = skipped.findIndex((x) => x.lead === s.lead);
+        if (idx !== -1) skipped.splice(idx, 1);
+      } catch (e: unknown) {
+        console.error("CREATE DRAFT LENIENT FALLBACK ERROR for lead:", { email, subject }, e);
+      }
+    }
+
+    if (newlyCreated.length > 0) {
+      createdEmails.push(...newlyCreated);
+      console.log("CREATE DRAFTS: lenient fallback created", newlyCreated.length, "drafts");
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     createdCount: createdEmails.length,
