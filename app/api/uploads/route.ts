@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import os from "os";
 
 type UploadRequest = {
   name: string;
@@ -18,27 +19,50 @@ export async function POST(req: Request) {
     const headerMime = req.headers.get("x-file-mime") || "application/pdf";
 
     const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     let safeName = "upload.pdf";
     let filename = "";
     let mimeType = headerMime;
+
+    // Helper to persist buffer to filesystem, try public/uploads then fall back to tmpdir
+    const persistBuffer = (buf: Buffer, outName: string) => {
+      const publicPath = path.join(uploadsDir, outName);
+
+      try {
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+
+        fs.writeFileSync(publicPath, buf);
+        // Serve via static public path
+        return { url: `/uploads/${outName}`, storedIn: "public" };
+      } catch (err) {
+        // Fall back to tmp dir (serverless environments are often read-only for project dir)
+        const tmpDir = path.resolve(process.cwd(), "tmp") || os.tmpdir();
+        if (!fs.existsSync(tmpDir)) {
+          try {
+            fs.mkdirSync(tmpDir, { recursive: true });
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        const tmpPath = path.join(os.tmpdir(), outName);
+        fs.writeFileSync(tmpPath, buf);
+        // Serve via API route that reads tmpdir
+        return { url: `/api/uploads/files/${outName}`, storedIn: "tmp" };
+      }
+    };
 
     if (headerName) {
       // Binary mode
       safeName = headerName.replace(/[^a-zA-Z0-9._-]/g, "_");
       filename = `${Date.now()}_${safeName}`;
-      const filepath = path.join(uploadsDir, filename);
 
       const arrayBuffer = await req.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
-      fs.writeFileSync(filepath, buffer);
-
-      const url = `/uploads/${filename}`;
-      return NextResponse.json({ ok: true, url, name: safeName, mimeType });
+      const result = persistBuffer(buffer, filename);
+      return NextResponse.json({ ok: true, url: result.url, name: safeName, mimeType });
     }
 
     // Fallback: JSON/base64 mode
@@ -63,14 +87,10 @@ export async function POST(req: Request) {
 
     safeName = name.replace(/[^a-zA-Z0-9._-]/g, "_");
     filename = `${Date.now()}_${safeName}`;
-    const filepath = path.join(uploadsDir, filename);
-
     const buffer = Buffer.from(data, "base64");
-    fs.writeFileSync(filepath, buffer);
+    const result = persistBuffer(buffer, filename);
 
-    const url = `/uploads/${filename}`;
-
-    return NextResponse.json({ ok: true, url, name: safeName, mimeType });
+    return NextResponse.json({ ok: true, url: result.url, name: safeName, mimeType });
   } catch (err: unknown) {
     console.error("UPLOAD ERROR:", err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "Upload failed" }, { status: 500 });
