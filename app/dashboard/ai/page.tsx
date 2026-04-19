@@ -299,8 +299,8 @@ export default function AIPage() {
             ];
           }
         }
+        console.log("CREATE DRAFTS PAYLOAD:", { leads: incomingLeads });
         const createRes = await fetch("/api/gmail/create-drafts", {
-          console.log("CREATE DRAFTS PAYLOAD:", { leads: incomingLeads });
           method: "POST",
           headers: {
             "Content-Type": "application/json",
