@@ -173,7 +173,18 @@ async function createDraftsForUser(req: Request, userId: string) {
 
     const attachmentInputs =
       lead.draft?.attachments?.length ? lead.draft.attachments : lead.attachments || [];
+    // sanitize attachment inputs: ensure name is present and normalize fields
+    const sanitizedAttachments: DraftAttachmentInput[] = (attachmentInputs || [])
+      .filter((a: DraftAttachmentInput | undefined) => !!a && !!a.name)
+      .map((a: DraftAttachmentInput) => ({
+        name: (a.name || "").trim(),
+        url: a.url ? String(a.url) : null,
+        mimeType: a.mimeType ?? a.type ?? null,
+      }));
 
+    console.log("CREATE DRAFT: creating for", { email, subject, attachments: sanitizedAttachments });
+
+    // attempt to create with attachments; if that fails, retry without attachments so drafts still get created
     try {
       const created = await prisma.email.create({
         data: {
@@ -190,13 +201,13 @@ async function createDraftsForUser(req: Request, userId: string) {
           location: lead.location?.trim() || null,
           scheduledAt: null,
           sentAt: null,
-          ...(attachmentInputs.length > 0
+          ...(sanitizedAttachments.length > 0
             ? {
                 attachments: {
-                  create: attachmentInputs.map((a: DraftAttachmentInput) => ({
+                  create: sanitizedAttachments.map((a: DraftAttachmentInput) => ({
                     name: a.name,
                     url: a.url ?? null,
-                    mimeType: a.mimeType ?? a.type ?? null,
+                    mimeType: a.mimeType ?? null,
                   })),
                 },
               }
@@ -209,10 +220,36 @@ async function createDraftsForUser(req: Request, userId: string) {
 
       createdEmails.push(created as CreatedDraft);
     } catch (e: unknown) {
-      console.error("CREATE DRAFT ERROR for lead:", { email, subject }, e);
-      skipped.push({ lead, reason: e instanceof Error ? e.message : String(e) });
-      // continue processing other leads
-      continue;
+      console.error("CREATE DRAFT ERROR (with attachments) for lead:", { email, subject }, e);
+
+      // try fallback: create without attachments
+      try {
+        const createdFallback = await prisma.email.create({
+          data: {
+            userId,
+            type: "OUTBOUND",
+            status: "DRAFT",
+            to: email,
+            from: null,
+            subject,
+            body: bodyText,
+            snippet: bodyText.slice(0, 180),
+            company: lead.company?.trim() || null,
+            website: lead.website?.trim() || null,
+            location: lead.location?.trim() || null,
+            scheduledAt: null,
+            sentAt: null,
+          },
+        });
+
+        createdEmails.push(createdFallback as CreatedDraft);
+
+        skipped.push({ lead, reason: `Attachments failed to save: ${e instanceof Error ? e.message : String(e)}` });
+      } catch (e2: unknown) {
+        console.error("CREATE DRAFT ERROR (fallback) for lead:", { email, subject }, e2);
+        skipped.push({ lead, reason: e2 instanceof Error ? e2.message : String(e2) });
+        continue;
+      }
     }
   }
 
