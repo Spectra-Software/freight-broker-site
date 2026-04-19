@@ -276,15 +276,26 @@ export default function AIPage() {
       const incomingLeads = Array.isArray(aiData.leads) ? dedupeLeads(aiData.leads) : [];
 
       if (incomingLeads.length > 0) {
-        // If the user uploaded attachments, attach them to each generated lead draft
+        // If the user uploaded attachments, attach only matching uploaded files to each generated lead draft
         if (uploadedAttachments.length > 0) {
           for (const lead of incomingLeads) {
             if (!lead.draft) lead.draft = {};
             const existing = Array.isArray(lead.draft.attachments) ? lead.draft.attachments : [];
 
+            // match uploaded files by name (case-insensitive) to AI-suggested attachment names
+            const desiredNames = new Set(
+              (existing as DraftAttachment[])
+                .map((a) => (a.name || "").toLowerCase())
+                .filter(Boolean)
+            );
+
+            const matched = uploadedAttachments.filter((u) =>
+              desiredNames.has((u.name || "").toLowerCase())
+            );
+
             lead.draft.attachments = [
               ...existing,
-              ...uploadedAttachments.map((a) => ({ name: a.name, url: a.url ?? undefined, mimeType: a.mimeType })),
+              ...matched.map((a) => ({ name: a.name, url: a.url ?? undefined, mimeType: a.mimeType })),
             ];
           }
         }
