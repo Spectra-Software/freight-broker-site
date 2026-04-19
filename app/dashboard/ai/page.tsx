@@ -277,6 +277,29 @@ export default function AIPage() {
       const incomingLeads = Array.isArray(aiData.leads) ? dedupeLeads(aiData.leads) : [];
 
       if (incomingLeads.length > 0) {
+        // Optimistic UI: create temporary drafts client-side so user sees results immediately
+        const optimisticDrafts: CreatedDraft[] = incomingLeads.map((lead, idx) => ({
+          id: `optimistic-${Date.now()}-${idx}`,
+          to: lead.email || "",
+          from: lead.company || null,
+          subject: lead.draft?.subject || "",
+          body: lead.draft?.body || "",
+          snippet: (lead.draft?.body || lead.draft?.subject || "").slice(0, 180),
+          company: lead.company || null,
+          website: lead.website || null,
+          location: lead.location || null,
+          scheduledAt: null,
+          sentAt: null,
+          attachments: (lead.draft?.attachments || lead.attachments || []).map((a) => ({
+            id: `opt-att-${Math.random().toString(36).slice(2, 9)}`,
+            name: a.name,
+            url: (a as any).url ?? null,
+            mimeType: a.mimeType ?? a.type ?? null,
+          })),
+        }));
+
+        setDrafts((prev) => mergeUniqueDrafts(prev, optimisticDrafts));
+        setLastCreateStats({ createdCount: optimisticDrafts.length, skippedCount: 0, skippedReasons: [] });
         // If the user uploaded attachments, attach only matching uploaded files to each generated lead draft
         if (uploadedAttachments.length > 0) {
           for (const lead of incomingLeads) {
