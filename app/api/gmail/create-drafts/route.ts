@@ -110,6 +110,15 @@ async function createDraftsForUser(req: Request, userId: string) {
     return NextResponse.json({ error: "No leads provided" }, { status: 400 });
   }
 
+  // Guard: ensure Prisma client and Email model delegate are available
+  if (!prisma || !prisma.email || typeof prisma.email.findMany !== "function") {
+    console.error("Prisma client or Email model delegate is not available on the server.");
+    return NextResponse.json(
+      { error: "Prisma client not initialized or Email model missing. Ensure 'prisma generate' ran during build." },
+      { status: 500 }
+    );
+  }
+
   const existingDrafts: ExistingDraftRow[] = await prisma.email.findMany({
     where: {
       userId,
