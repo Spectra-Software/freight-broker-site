@@ -325,36 +325,32 @@ export default function AIPage() {
         const createdCount = typeof createData.createdCount === "number" ? createData.createdCount : createdDrafts.length;
         const skippedArr = Array.isArray(createData.skipped) ? createData.skipped : [];
 
+        // Update UI stats for created/skipped
+        setLastCreateStats({
+          createdCount,
+          skippedCount: skippedArr.length,
+          skippedReasons: skippedArr.map((s: any) => s.reason || "unknown"),
+        });
+
+        // Show assistant summary message for visibility
+        const summaryParts: string[] = [];
+        summaryParts.push(`Created ${createdCount} draft${createdCount === 1 ? "" : "s"}`);
+        if (skippedArr.length > 0) {
+          summaryParts.push(`Skipped ${skippedArr.length}`);
+        }
+
+        const summaryMsg = summaryParts.join(" — ");
+
+        if (skippedArr.length > 0) {
+          const reasons = skippedArr.map((s: any, i: number) => `${i + 1}. ${s.reason || "unknown"}`).join("; ");
+          setMessages((prev) => [...prev, { role: "assistant", content: `${summaryMsg}. Reasons: ${reasons}` }]);
+        } else {
+          setMessages((prev) => [...prev, { role: "assistant", content: summaryMsg }]);
+        }
+
         if (createdDrafts.length > 0) {
           setDrafts((prev) => mergeUniqueDrafts(prev, createdDrafts));
           setSelectedDraftId(draftKeyFromCreatedDraft(createdDrafts[0]));
-        } else {
-          // If no drafts were created, show a clear assistant message with server-provided reasons (if any)
-          const skipped = skippedArr;
-
-          // Update UI stats for created/skipped
-          setLastCreateStats({
-            createdCount,
-            skippedCount: skipped.length,
-            skippedReasons: skipped.map((s: any) => s.reason || "unknown"),
-          });
-
-          if (skipped.length > 0) {
-            const reasons = skipped.map((s: any, i: number) => `${i + 1}. ${s.reason || "unknown"}`).join("; ");
-
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "assistant",
-                content: `No drafts were created. ${skipped.length} lead(s) were skipped: ${reasons}`,
-              },
-            ]);
-          } else {
-            setMessages((prev) => [
-              ...prev,
-              { role: "assistant", content: "No drafts were created by the server." },
-            ]);
-          }
         }
       }
 
