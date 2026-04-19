@@ -252,7 +252,7 @@ export default function AIPage() {
         email: draft.to,
       }));
 
-      const aiRes = await fetch("/api/ai_v2", {
+      const aiRes = await fetch("/api/ai", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
