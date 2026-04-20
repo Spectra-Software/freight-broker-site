@@ -45,6 +45,20 @@ export async function sendEmail({
 }) {
   const gmail = getGmail(accessToken);
 
+  async function getGmailSignature(): Promise<string | null> {
+    try {
+      // gmail.users.settings.sendAs requires the gmail.settings.basic scope; may fail if not granted
+      const res = await gmail.users.settings.sendAs.list({ userId: "me" as any });
+      const sendAs = res.data.sendAs || [];
+      const primary = sendAs.find((s: any) => s.isPrimary) || sendAs[0];
+      if (primary && primary.signature) return primary.signature as string;
+    } catch (e) {
+      // ignore errors (likely missing scope)
+      console.warn("Could not fetch Gmail signature", e);
+    }
+    return null;
+  }
+
   // =========================
   // FETCH ATTACHMENTS SAFELY
   // =========================
@@ -107,14 +121,17 @@ export async function sendEmail({
   }
 
   const plainText = typeof body === "string" ? body : "";
-  const htmlBody = (() => {
+  const htmlBody = (async () => {
     const text = plainText.trim();
     // Normalize newlines
     const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     // Split on double newlines for paragraphs
     const paragraphs = normalized.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     const escaped = paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br />")}</p>`).join("\n\n");
-    return `<!DOCTYPE html><html><body>${escaped}</body></html>`;
+    // attempt to append Gmail signature (HTML) when available
+    const signatureHtml = await getGmailSignature();
+    const withSig = signatureHtml ? `${escaped}<br/>${signatureHtml}` : escaped;
+    return `<!DOCTYPE html><html><body>${withSig}</body></html>`;
   })();
 
   // multipart/alternative part
@@ -134,7 +151,8 @@ export async function sendEmail({
   parts.push("Content-Type: text/html; charset=UTF-8");
   parts.push("Content-Transfer-Encoding: 7bit");
   parts.push("");
-  parts.push(htmlBody);
+  // htmlBody may be a promise if signature fetch was attempted
+  parts.push(typeof htmlBody === "string" ? htmlBody : await htmlBody);
 
   // end alt
   parts.push(`--${altBoundary}--`);
