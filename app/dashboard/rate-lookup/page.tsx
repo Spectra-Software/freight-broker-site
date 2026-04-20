@@ -22,6 +22,7 @@ export default function RateLookupPage() {
 
   const [selectedTrailer, setSelectedTrailer] = useState<string>("dry_van");
   const [selectedCarrier, setSelectedCarrier] = useState<string>("Any Carrier");
+  const [availableCarriers, setAvailableCarriers] = useState<{ id: string; name: string }[]>([]);
 
   const [miles, setMiles] = useState<number | null>(null);
   const [estimatedRate, setEstimatedRate] = useState<number | null>(null);
@@ -111,6 +112,19 @@ export default function RateLookupPage() {
     }
   }, [originCoord, destCoord]);
 
+  useEffect(() => {
+    // fetch dynamic carrier list
+    (async () => {
+      try {
+        const res = await fetch('/api/rates/carriers');
+        const data = await res.json();
+        if (Array.isArray(data.carriers)) setAvailableCarriers(data.carriers);
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
+
   async function geocode(query: string) {
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
     const res = await fetch(url, { headers: { "Accept": "application/json" } });
@@ -196,10 +210,10 @@ export default function RateLookupPage() {
         <div>
           <label className="text-xs text-gray-400">Carrier</label>
           <select value={selectedCarrier} onChange={(e) => setSelectedCarrier(e.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm text-white">
-            <option>Any Carrier</option>
-            <option>Carrier A</option>
-            <option>Carrier B</option>
-            <option>Carrier C</option>
+            <option value="Any Carrier">Any Carrier</option>
+            {availableCarriers.map((c) => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
           </select>
         </div>
 
