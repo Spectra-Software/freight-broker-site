@@ -91,43 +91,74 @@ export async function sendEmail({
   }[];
 
   const boundary = "----=_Part_" + Date.now();
-
   const parts: string[] = [];
 
-  // =========================
-  // EMAIL BODY
-  // =========================
-  parts.push(
-    `--${boundary}`,
-    "Content-Type: text/html; charset=UTF-8",
-    "Content-Transfer-Encoding: 7bit",
-    "",
-    body
-  );
+  // Build multipart/alternative for plain text and HTML body inside multipart/mixed
+  const altBoundary = "----=_Alt_" + Date.now();
 
-  // =========================
-  // ATTACHMENTS
-  // =========================
-  for (const file of validFiles) {
-    parts.push(
-      `--${boundary}`,
-      `Content-Type: ${file.mimeType}; name="${file.filename}"`,
-      "Content-Transfer-Encoding: base64",
-      `Content-Disposition: attachment; filename="${file.filename}"`,
-      "",
-      file.content
-    );
+  // sanitize and convert plain text body to HTML
+  function escapeHtml(s: string) {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
+  const plainText = typeof body === "string" ? body : "";
+  const htmlBody = (() => {
+    const text = plainText.trim();
+    // Normalize newlines
+    const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    // Split on double newlines for paragraphs
+    const paragraphs = normalized.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    const escaped = paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br />")}</p>`).join("\n\n");
+    return `<!DOCTYPE html><html><body>${escaped}</body></html>`;
+  })();
+
+  // multipart/alternative part
+  parts.push(`--${boundary}`);
+  parts.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+  parts.push("");
+
+  // plain text part
+  parts.push(`--${altBoundary}`);
+  parts.push("Content-Type: text/plain; charset=UTF-8");
+  parts.push("Content-Transfer-Encoding: 7bit");
+  parts.push("");
+  parts.push(plainText);
+
+  // html part
+  parts.push(`--${altBoundary}`);
+  parts.push("Content-Type: text/html; charset=UTF-8");
+  parts.push("Content-Transfer-Encoding: 7bit");
+  parts.push("");
+  parts.push(htmlBody);
+
+  // end alt
+  parts.push(`--${altBoundary}--`);
+
+  // attachments (if any)
+  for (const file of validFiles) {
+    parts.push(`--${boundary}`);
+    parts.push(`Content-Type: ${file.mimeType}; name="${file.filename}"`);
+    parts.push("Content-Transfer-Encoding: base64");
+    parts.push(`Content-Disposition: attachment; filename="${file.filename}"`);
+    parts.push("");
+    parts.push(file.content);
+  }
+
+  // final boundary
   parts.push(`--${boundary}--`);
 
   const rawMessage = [
     `To: ${to}`,
     `Subject: ${subject}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    `Content-Type: multipart/mixed; boundary=\"${boundary}\"`,
     "",
-    parts.join("\r\n"), // 🔥 IMPORTANT: CRLF FIX
+    parts.join("\r\n"), // CRLF
   ].join("\r\n");
 
   const encodedMessage = Buffer.from(rawMessage)
