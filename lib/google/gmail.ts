@@ -259,7 +259,8 @@ export async function sendEmail({
         return {
           filename: asciiAttachmentFilename(file.name),
           mimeType: file.mimeType || "application/pdf",
-          content: wrapBase64ForMime(buffer.toString("base64")),
+          /** Raw PDF bytes — MIME layer applies base64 + wrapping. */
+          content: buffer,
         };
       } catch (err) {
         console.error("ATTACHMENT FETCH FAILED:", file.url, err);
@@ -271,8 +272,23 @@ export async function sendEmail({
   const validFiles = files.filter(Boolean) as {
     filename: string;
     mimeType: string;
-    content: string;
+    content: Buffer;
   }[];
+
+  const expectedWithUrl = attachments.filter((a) => !!a.url).length;
+  if (expectedWithUrl > 0 && validFiles.length === 0) {
+    throw new Error(
+      "Attachments could not be loaded (missing files or unreachable URLs). Message not sent so nothing is delivered without PDFs."
+    );
+  }
+  if (expectedWithUrl > 0 && validFiles.length < expectedWithUrl) {
+    console.warn(
+      "SEND: some attachments failed to load; sending with",
+      validFiles.length,
+      "of",
+      expectedWithUrl
+    );
+  }
 
   const boundary = "----=_Part_" + Date.now();
   const parts: string[] = [];
@@ -291,11 +307,10 @@ export async function sendEmail({
   }
 
   const plainText = plainBody;
-  const htmlBody = (async () => {
+
+  const htmlBodyPromise = (async () => {
     const text = plainText.trim();
-    // Normalize newlines
     const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    // Split on double newlines for paragraphs
     const paragraphs = normalized.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     const escaped = paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br />")}</p>`).join("\n\n");
     const withSig = signatureHtmlForSend ? `${escaped}<br/>${signatureHtmlForSend}` : escaped;
@@ -307,20 +322,21 @@ export async function sendEmail({
   parts.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
   parts.push("");
 
-  // plain text part
+  // Plain + HTML as base64 so UTF-8 (signatures, emoji) never violates 7bit; Gmail parses attachments reliably.
+  const plainB64 = wrapBase64ForMime(Buffer.from(plainText, "utf-8").toString("base64"));
   parts.push(`--${altBoundary}`);
   parts.push("Content-Type: text/plain; charset=UTF-8");
-  parts.push("Content-Transfer-Encoding: 7bit");
+  parts.push("Content-Transfer-Encoding: base64");
   parts.push("");
-  parts.push(plainText);
+  parts.push(plainB64);
 
-  // html part
+  const htmlResolved = await htmlBodyPromise;
+  const htmlB64 = wrapBase64ForMime(Buffer.from(htmlResolved, "utf-8").toString("base64"));
   parts.push(`--${altBoundary}`);
   parts.push("Content-Type: text/html; charset=UTF-8");
-  parts.push("Content-Transfer-Encoding: 7bit");
+  parts.push("Content-Transfer-Encoding: base64");
   parts.push("");
-  // htmlBody may be a promise if signature fetch was attempted
-  parts.push(typeof htmlBody === "string" ? htmlBody : await htmlBody);
+  parts.push(htmlB64);
 
   // end alt
   parts.push(`--${altBoundary}--`);
@@ -332,7 +348,7 @@ export async function sendEmail({
     parts.push("Content-Transfer-Encoding: base64");
     parts.push(`Content-Disposition: attachment; filename="${file.filename}"`);
     parts.push("");
-    parts.push(file.content);
+    parts.push(wrapBase64ForMime(file.content.toString("base64")));
   }
 
   // final boundary
@@ -347,11 +363,11 @@ export async function sendEmail({
     parts.join("\r\n"), // CRLF
   ].join("\r\n");
 
+  // Gmail expects web-safe base64 without URL-breaking line breaks; keep padding (=) — stripping can break decode.
   const encodedMessage = Buffer.from(rawMessage)
     .toString("base64")
     .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+    .replace(/\//g, "_");
 
   return gmail.users.messages.send({
     userId: "me",
