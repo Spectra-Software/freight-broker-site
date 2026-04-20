@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { fetchGmailSignatureHtml, gmailSignatureHtmlToPlainText } from "@/lib/google/gmail";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
 
@@ -52,6 +52,10 @@ function safeParseJSON(raw: string) {
   }
 }
 
+function embedInPromptLiteral(s: string) {
+  return s.replace(/`/g, "'").replace(/\$\{/g, "$\u007b");
+}
+
 export async function POST(req: Request) {
   try {
     const body: unknown = await req.json().catch(() => ({}));
@@ -74,7 +78,35 @@ export async function POST(req: Request) {
       ? attachments.map((a: any) => `${a.name} (${a.url || "no-url"})`).join(", ")
       : "None";
 
-    const system = `You are an AI assistant that helps freight brokers find shippers and produce professional outreach drafts.\\n\\nRules:\\n- ALWAYS return valid JSON and nothing else.\\n- Top-level response must be an object: { \"reply\": string, \"leads\": array }.\\n- When asked to find leads return 3-10 leads when possible.\\n- Each lead must include: company, website (or null), email (or null), location (or null), and draft.\\n- draft must include subject and body. Body MUST be a polished, formal email with a greeting, 1-2 short paragraphs, a clear call to action, and a professional signature (name and contact). Use paragraph breaks (\\\\n\\\\n).\\n- If attachments are suggested, include attachments array on draft with objects: { name: string, mimeType?: string, url?: string } — include url when an uploaded attachment with that name exists.\\n- If you cannot produce leads, return leads: [] and a helpful reply.\\n\\nReference style (tone and formatting):\\nHey Team,\\\\n\\\\nI hope this message finds you well. I wanted to take a moment to introduce Haulora Freight and share our company information with you.\\\\n\\\\nWe work with a network of reliable carriers across step deck, flatbed, and open-deck freight, and our focus is helping businesses like yours keep their shipments moving smoothly. Whether it’s last-minute loads, challenging lanes, or consistent freight.\\\\n\\\\nI’ve attached our information for your review. Please feel free to reach out at any time by email. I’d be happy to discuss how we can support your logistics needs and provide dependable capacity whenever you need it.\\\\n\\\\nThank you for your time, and I look forward to the opportunity to work with your team.\\\\n\\\\nBest regards,\\\\n\\\\nAustin\\n\\nExisting leads:\\n${existingText}\\n\\nUploaded attachments:\\n${attachmentText}\\n\\nRespond ONLY with JSON containing reply and leads. Do not wrap in markdown.`;
+    let gmailSignaturePlain = "";
+    try {
+      const session = await getServerSession(authOptions);
+      const accessToken = (session as { accessToken?: string } | null)?.accessToken;
+      if (accessToken) {
+        const sigHtml = await fetchGmailSignatureHtml(accessToken);
+        if (sigHtml) {
+          const plain = gmailSignatureHtmlToPlainText(sigHtml);
+          gmailSignaturePlain =
+            plain.length > 4000 ? `${plain.slice(0, 4000)}\n[signature truncated]` : plain;
+        }
+      }
+    } catch (e) {
+      console.warn("AI V3: Gmail signature unavailable", e);
+    }
+
+    const draftBodyRule = gmailSignaturePlain
+      ? `- draft must include subject and body. Body: greeting, 1-2 short paragraphs, clear call to action, then the user's Gmail signature EXACTLY as in "User Gmail signature" below (same words and line breaks). Use \\\\n\\\\n between the last paragraph and the signature if needed. Do not add a different name, title, phone, or email sign-off above the signature.`
+      : `- draft must include subject and body. Body MUST be a polished, formal email with a greeting, 1-2 short paragraphs, a clear call to action, and a professional signature (name and contact). Use paragraph breaks (\\\\n\\\\n).`;
+
+    const referenceStyle = gmailSignaturePlain
+      ? ""
+      : `\\n\\nReference style (tone and formatting):\\nHey Team,\\\\n\\\\nI hope this message finds you well. I wanted to take a moment to introduce Haulora Freight and share our company information with you.\\\\n\\\\nWe work with a network of reliable carriers across step deck, flatbed, and open-deck freight, and our focus is helping businesses like yours keep their shipments moving smoothly. Whether it’s last-minute loads, challenging lanes, or consistent freight.\\\\n\\\\nI’ve attached our information for your review. Please feel free to reach out at any time by email. I’d be happy to discuss how we can support your logistics needs and provide dependable capacity whenever you need it.\\\\n\\\\nThank you for your time, and I look forward to the opportunity to work with your team.\\\\n\\\\nBest regards,\\\\n\\\\nAustin`;
+
+    const signatureBlock = gmailSignaturePlain
+      ? `\\n\\nUser Gmail signature (plain text):\\n${embedInPromptLiteral(gmailSignaturePlain)}\\n`
+      : "";
+
+    const system = `You are an AI assistant that helps freight brokers find shippers and produce professional outreach drafts.\\n\\nRules:\\n- ALWAYS return valid JSON and nothing else.\\n- Top-level response must be an object: { \"reply\": string, \"leads\": array }.\\n- When asked to find leads return 3-10 leads when possible.\\n- Each lead must include: company, website (or null), email (or null), location (or null), and draft.\\n${draftBodyRule}\\n- If attachments are suggested, include attachments array on draft with objects: { name: string, mimeType?: string, url?: string } — include url when an uploaded attachment with that name exists.\\n- If you cannot produce leads, return leads: [] and a helpful reply.${referenceStyle}${signatureBlock}\\n\\nExisting leads:\\n${existingText}\\n\\nUploaded attachments:\\n${attachmentText}\\n\\nRespond ONLY with JSON containing reply and leads. Do not wrap in markdown.`;
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",

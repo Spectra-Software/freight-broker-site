@@ -23,6 +23,45 @@ function getGmail(accessToken: string) {
   });
 }
 
+/** Primary send-as HTML signature from Gmail settings (requires Gmail API scopes). */
+export async function fetchGmailSignatureHtml(accessToken: string): Promise<string | null> {
+  try {
+    const gmail = getGmail(accessToken);
+    const res = await gmail.users.settings.sendAs.list({ userId: "me" as any });
+    const sendAs = res.data.sendAs || [];
+    const primary = sendAs.find((s: any) => s.isPrimary) || sendAs[0];
+    if (primary?.signature) return String(primary.signature).trim() || null;
+  } catch (e) {
+    console.warn("Could not fetch Gmail signature", e);
+  }
+  return null;
+}
+
+/** Plain-text approximation of a Gmail HTML signature (for prompts / previews). */
+export function gmailSignatureHtmlToPlainText(html: string): string {
+  if (!html) return "";
+  let s = html.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  s = s.replace(/<\/(div|p|h[1-6]|tr|blockquote)>/gi, "\n");
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<[^>]+>/g, "");
+  s = s.replace(/&nbsp;/gi, " ");
+  s = s.replace(/&amp;/g, "&");
+  s = s.replace(/&lt;/g, "<");
+  s = s.replace(/&gt;/g, ">");
+  s = s.replace(/&quot;/g, '"');
+  s = s.replace(/&#39;/g, "'");
+  s = s.replace(/&#(\d+);/g, (_, n) => {
+    const code = parseInt(n, 10);
+    return Number.isFinite(code) ? String.fromCharCode(code) : _;
+  });
+  return s
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // =========================
 // 🔥 SEND EMAIL (PRODUCTION SAFE)
 // =========================
@@ -49,17 +88,7 @@ export async function sendEmail({
 
   async function getGmailSignature(): Promise<string | null> {
     if (!useGmailSignature) return null;
-    try {
-      // gmail.users.settings.sendAs requires the gmail.settings.basic scope; may fail if not granted
-      const res = await gmail.users.settings.sendAs.list({ userId: "me" as any });
-      const sendAs = res.data.sendAs || [];
-      const primary = sendAs.find((s: any) => s.isPrimary) || sendAs[0];
-      if (primary && primary.signature) return primary.signature as string;
-    } catch (e) {
-      // ignore errors (likely missing scope)
-      console.warn("Could not fetch Gmail signature", e);
-    }
-    return null;
+    return fetchGmailSignatureHtml(accessToken);
   }
 
   // =========================
