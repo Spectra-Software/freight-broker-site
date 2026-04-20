@@ -85,12 +85,17 @@ export async function POST(req: Request) {
         // prepare attachments
         const attachments = (draft.attachments || []).map((a: any) => ({ name: a.name, url: a.url ?? undefined, mimeType: a.mimeType ?? null }));
 
+        // decide whether to prefer Gmail signature based on user preference
+        const pref = await prisma.user.findUnique({ where: { email: session.user.email }, select: { preferGmailSignature: true } });
+        const useGmailSignature = !!pref?.preferGmailSignature;
+
         await sendEmail({
           accessToken: accessToken!,
           to: draft.to,
           subject: draft.subject,
           body: draft.body,
           attachments,
+          useGmailSignature,
         });
 
         await prisma.email.update({ where: { id: draft.id }, data: { status: "SENT", sentAt: new Date() } });

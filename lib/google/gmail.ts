@@ -32,6 +32,7 @@ export async function sendEmail({
   subject,
   body,
   attachments = [],
+  useGmailSignature = false,
 }: {
   accessToken: string;
   to: string;
@@ -42,10 +43,12 @@ export async function sendEmail({
     url?: string;
     mimeType?: string;
   }[];
+  useGmailSignature?: boolean;
 }) {
   const gmail = getGmail(accessToken);
 
   async function getGmailSignature(): Promise<string | null> {
+    if (!useGmailSignature) return null;
     try {
       // gmail.users.settings.sendAs requires the gmail.settings.basic scope; may fail if not granted
       const res = await gmail.users.settings.sendAs.list({ userId: "me" as any });
