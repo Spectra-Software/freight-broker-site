@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import os from "os";
+import { persistUploadBuffer } from "@/lib/uploads/persistUpload";
 
 export const runtime = "nodejs";
 
@@ -27,38 +25,13 @@ function isPdfMime(mime: string) {
 
 export async function POST(req: Request) {
   try {
-    // Support two modes:
-    // 1) Binary upload: client sends raw file body and sets headers 'x-file-name' and 'x-file-mime'
-    // 2) JSON upload: legacy base64 payload { name, mimeType, data }
-
     const headerName = decodeFilename(req.headers.get("x-file-name"));
     const headerMime = req.headers.get("x-file-mime") || "application/pdf";
 
-    const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
     let safeName = "upload.pdf";
     let filename = "";
     let mimeType = headerMime;
     let displayName = "upload.pdf";
-
-    // Helper to persist buffer to filesystem, try public/uploads then fall back to tmpdir
-    const persistBuffer = (buf: Buffer, outName: string) => {
-      const publicPath = path.join(uploadsDir, outName);
-
-      try {
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-
-        fs.writeFileSync(publicPath, buf);
-        // Serve via static public path
-        return { url: `/uploads/${outName}`, storedIn: "public" };
-      } catch {
-        const tmpPath = path.join(os.tmpdir(), outName);
-        fs.writeFileSync(tmpPath, buf);
-        // Serve via API route that reads tmpdir
-        return { url: `/api/uploads/files/${outName}`, storedIn: "tmp" };
-      }
-    };
 
     if (headerName) {
       if (!isPdfMime(headerMime)) {
@@ -76,11 +49,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Empty file" }, { status: 400 });
       }
 
-      const result = persistBuffer(buffer, filename);
-      return NextResponse.json({ ok: true, url: result.url, name: displayName, mimeType });
+      const result = await persistUploadBuffer(buffer, filename, mimeType);
+      return NextResponse.json({ ok: true, url: result.url, name: displayName, mimeType, storedIn: result.storedIn });
     }
 
-    // Fallback: JSON/base64 mode
     const body: unknown = await req.json().catch(() => null);
 
     if (!body || typeof body !== "object") {
@@ -106,11 +78,13 @@ export async function POST(req: Request) {
     if (buffer.byteLength === 0) {
       return NextResponse.json({ error: "Empty file" }, { status: 400 });
     }
-    const result = persistBuffer(buffer, filename);
+    const result = await persistUploadBuffer(buffer, filename, mimeType);
 
-    return NextResponse.json({ ok: true, url: result.url, name: displayName, mimeType });
+    return NextResponse.json({ ok: true, url: result.url, name: displayName, mimeType, storedIn: result.storedIn });
   } catch (err: unknown) {
     console.error("UPLOAD ERROR:", err);
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Upload failed" }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Upload failed";
+    const isConfig = message.includes("BLOB_READ_WRITE_TOKEN") || message.includes("read-only");
+    return NextResponse.json({ error: message }, { status: isConfig ? 503 : 500 });
   }
 }
