@@ -274,7 +274,29 @@ export default function AIPage() {
 
       setMessages((prev) => [...prev, { role: "assistant", content: replyText }]);
 
-      const incomingLeads = Array.isArray(aiData.leads) ? dedupeLeads(aiData.leads) : [];
+      const incomingLeadsRaw = Array.isArray(aiData.leads) ? dedupeLeads(aiData.leads) : [];
+
+      // sanitize AI-provided text fields: unescape literal backslash-n sequences into real newlines
+      function unescapeNewlines(value?: string | null) {
+        if (!value) return "";
+        // Replace literal backslash-n ("\\n") with actual newline, and carriage returns
+        return value.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").trim();
+      }
+
+      const incomingLeads = incomingLeadsRaw.map((lead) => {
+        const copy = { ...lead } as LeadDraft;
+
+        if (copy.draft) {
+          copy.draft = {
+            ...copy.draft,
+            subject: unescapeNewlines(copy.draft.subject),
+            body: unescapeNewlines(copy.draft.body),
+            attachments: Array.isArray(copy.draft.attachments) ? copy.draft.attachments : [],
+          };
+        }
+
+        return copy;
+      });
 
       if (incomingLeads.length > 0) {
         // Optimistic UI: create temporary drafts client-side so user sees results immediately
