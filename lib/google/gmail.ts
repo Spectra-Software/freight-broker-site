@@ -1,3 +1,6 @@
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { google } from "googleapis";
 
 // =========================
@@ -131,6 +134,59 @@ function resolveAttachmentFetchUrl(fileUrl: string): string {
   return u;
 }
 
+function uploadPathnameOnly(fileUrl: string): string {
+  const u = fileUrl.trim();
+  try {
+    if (/^https?:\/\//i.test(u)) return new URL(u).pathname;
+  } catch {
+    /* ignore */
+  }
+  return u.startsWith("/") ? u : `/${u}`;
+}
+
+/**
+ * Read files from this app's upload dirs (avoids server-side fetch() with relative URLs,
+ * which fails in Node when NEXTAUTH_URL is unset).
+ */
+function tryReadUploadFromDisk(fileUrl: string): Buffer | null {
+  const pathname = uploadPathnameOnly(fileUrl);
+  let filename: string | null = null;
+  const m1 = pathname.match(/^\/uploads\/(.+)$/);
+  const m2 = pathname.match(/^\/api\/uploads\/files\/(.+)$/);
+  if (m1) filename = m1[1];
+  else if (m2) filename = m2[1];
+  if (!filename || filename.includes("..")) return null;
+
+  const publicPath = path.join(process.cwd(), "public", "uploads", filename);
+  try {
+    if (fs.existsSync(publicPath)) return fs.readFileSync(publicPath);
+  } catch {
+    /* continue */
+  }
+  const tmpPath = path.join(os.tmpdir(), filename);
+  try {
+    if (fs.existsSync(tmpPath)) return fs.readFileSync(tmpPath);
+  } catch {
+    /* continue */
+  }
+  return null;
+}
+
+function asciiAttachmentFilename(name: string) {
+  const base = (name || "attachment").replace(/"/g, "_").replace(/[\r\n]/g, "_").trim() || "attachment.pdf";
+  return base.replace(/[^\x20-\x7E]/g, "_").slice(0, 200);
+}
+
+/** RFC 2045-style wrapping so MIME lines are not arbitrarily long (some transports are picky). */
+function wrapBase64ForMime(b64: string) {
+  const cleaned = b64.replace(/\s+/g, "");
+  const lines: string[] = [];
+  for (let i = 0; i < cleaned.length; i += 76) {
+    lines.push(cleaned.slice(i, i + 76));
+  }
+  return lines.join("\r\n");
+}
+
 // =========================
 // 🔥 SEND EMAIL (PRODUCTION SAFE)
 // =========================
@@ -168,21 +224,31 @@ export async function sendEmail({
   // =========================
   const files = await Promise.all(
     attachments.map(async (file) => {
-      if (!file.url) return null;
+      if (!file.url) {
+        console.warn("ATTACHMENT SKIP: missing url for", file.name);
+        return null;
+      }
 
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000); // 10s limit
+        let buffer: Buffer | null = tryReadUploadFromDisk(file.url);
 
-        const res = await fetch(resolveAttachmentFetchUrl(file.url), {
-          signal: controller.signal,
-        });
+        if (!buffer) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 20000);
 
-        clearTimeout(timeout);
+          const res = await fetch(resolveAttachmentFetchUrl(file.url), {
+            signal: controller.signal,
+          });
 
-        if (!res.ok) return null;
+          clearTimeout(timeout);
 
-        const buffer = await res.arrayBuffer();
+          if (!res.ok) {
+            console.error("ATTACHMENT HTTP FAILED:", file.url, res.status, res.statusText);
+            return null;
+          }
+
+          buffer = Buffer.from(await res.arrayBuffer());
+        }
 
         // Gmail-safe size guard (10MB per file)
         if (buffer.byteLength > 10 * 1024 * 1024) {
@@ -191,12 +257,12 @@ export async function sendEmail({
         }
 
         return {
-          filename: file.name,
+          filename: asciiAttachmentFilename(file.name),
           mimeType: file.mimeType || "application/pdf",
-          content: Buffer.from(buffer).toString("base64"),
+          content: wrapBase64ForMime(buffer.toString("base64")),
         };
       } catch (err) {
-        console.error("ATTACHMENT FETCH FAILED:", file.url);
+        console.error("ATTACHMENT FETCH FAILED:", file.url, err);
         return null;
       }
     })

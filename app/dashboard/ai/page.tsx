@@ -326,6 +326,30 @@ export default function AIPage() {
         return copy;
       });
 
+      // Every generated draft gets every PDF the user uploaded this session (deduped by URL).
+      if (uploadedAttachments.length > 0) {
+        for (const lead of incomingLeads) {
+          if (!lead.draft) lead.draft = {};
+          const existing = Array.isArray(lead.draft.attachments) ? [...lead.draft.attachments] : [];
+          const byKey = new Map<string, DraftAttachment>();
+          for (const a of existing) {
+            const u = ((a as DraftAttachment).url || "").trim();
+            const key = u ? u.toLowerCase() : `name:${((a as DraftAttachment).name || "").toLowerCase()}`;
+            byKey.set(key, a as DraftAttachment);
+          }
+          for (const u of uploadedAttachments) {
+            const url = (u.url || "").trim();
+            const key = url ? url.toLowerCase() : `name:${(u.name || "").toLowerCase()}`;
+            byKey.set(key, {
+              name: u.name,
+              url: u.url ?? undefined,
+              mimeType: u.mimeType ?? undefined,
+            });
+          }
+          lead.draft.attachments = Array.from(byKey.values());
+        }
+      }
+
       if (incomingLeads.length > 0) {
         // Optimistic UI: create temporary drafts client-side so user sees results immediately
         const optimisticDrafts: CreatedDraft[] = incomingLeads.map((lead, idx) => ({
@@ -350,41 +374,6 @@ export default function AIPage() {
 
         setDrafts((prev) => mergeUniqueDrafts(prev, optimisticDrafts));
         setLastCreateStats({ createdCount: optimisticDrafts.length, skippedCount: 0, skippedReasons: [] });
-        // If the user uploaded attachments, attach only matching uploaded files to each generated lead draft
-        if (uploadedAttachments.length > 0) {
-          for (const lead of incomingLeads) {
-            if (!lead.draft) lead.draft = {};
-            const existing = Array.isArray(lead.draft.attachments) ? lead.draft.attachments : [];
-
-            // Match uploads to AI-suggested attachment names when the model lists them.
-            const desiredNames = new Set(
-              (existing as DraftAttachment[])
-                .map((a) => (a.name || "").toLowerCase())
-                .filter(Boolean)
-            );
-
-            let matched =
-              desiredNames.size > 0
-                ? uploadedAttachments.filter((u) => desiredNames.has((u.name || "").toLowerCase()))
-                : [];
-
-            // If the model did not name attachments (or names did not match), attach every user upload
-            // to each draft so PDFs still go out with outreach.
-            if (matched.length === 0) {
-              matched = uploadedAttachments;
-            }
-
-            const existingUrls = new Set(
-              (existing as DraftAttachment[]).map((a) => (a.url || "").trim()).filter(Boolean)
-            );
-            const uploadsToAdd = matched.filter((a) => !existingUrls.has((a.url || "").trim()));
-
-            lead.draft.attachments = [
-              ...existing,
-              ...uploadsToAdd.map((a) => ({ name: a.name, url: a.url ?? undefined, mimeType: a.mimeType })),
-            ];
-          }
-        }
         console.log("CREATE DRAFTS PAYLOAD:", { leads: incomingLeads });
         const createRes = await fetch("/api/gmail/create-drafts", {
           method: "POST",
