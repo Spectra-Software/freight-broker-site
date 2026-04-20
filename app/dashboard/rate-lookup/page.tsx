@@ -26,6 +26,7 @@ export default function RateLookupPage() {
 
   const [miles, setMiles] = useState<number | null>(null);
   const [estimatedRate, setEstimatedRate] = useState<number | null>(null);
+  const [dieselPrice, setDieselPrice] = useState<number | null>(null);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<any>(null);
@@ -104,7 +105,27 @@ export default function RateLookupPage() {
 
     if (originCoord && destCoord) {
       const latlngs = [ [originCoord.lat, originCoord.lng], [destCoord.lat, destCoord.lng] ];
-      polylineRef.current = L.polyline(latlngs, { color: 'blue' }).addTo(leafletMapRef.current);
+      // Draw a polyline following highways using the OSRM route service for better road routing
+      (async () => {
+        try {
+          const url = `https://router.project-osrm.org/route/v1/driving/${originCoord.lng},${originCoord.lat};${destCoord.lng},${destCoord.lat}?overview=full&geometries=geojson`;
+          const r = await fetch(url);
+          if (r.ok) {
+            const data = await r.json();
+            const coords = data.routes?.[0]?.geometry?.coordinates || null;
+            if (coords && Array.isArray(coords) && coords.length) {
+              const latlngsRoute = coords.map((c: any) => [c[1], c[0]]);
+              polylineRef.current = L.polyline(latlngsRoute, { color: 'blue' }).addTo(leafletMapRef.current);
+            } else {
+              polylineRef.current = L.polyline(latlngs, { color: 'blue' }).addTo(leafletMapRef.current);
+            }
+          } else {
+            polylineRef.current = L.polyline(latlngs, { color: 'blue' }).addTo(leafletMapRef.current);
+          }
+        } catch (e) {
+          polylineRef.current = L.polyline(latlngs, { color: 'blue' }).addTo(leafletMapRef.current);
+        }
+      })();
       leafletMapRef.current.fitBounds(polylineRef.current.getBounds(), { padding: [40, 40] });
     } else if (originCoord || destCoord) {
       const loc = originCoord || destCoord;
@@ -171,8 +192,22 @@ export default function RateLookupPage() {
       const m = haversine(o, d);
       setMiles(Number(m.toFixed(1)));
 
-      const ratePerMile = trailerRates[selectedTrailer] ?? trailerRates.dry_van;
-      setEstimatedRate(Number((m * ratePerMile).toFixed(2)));
+      // Fetch national diesel price and adjust rate per mile
+      try {
+        const resp = await fetch("/api/fuel/national");
+        const json = await resp.json();
+        if (json && typeof json.price === "number") {
+          setDieselPrice(Number(json.price));
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      const baseRatePerMile = trailerRates[selectedTrailer] ?? trailerRates.dry_van;
+      // adjust per-mile by diesel price factor (simple proportional scaling to a baseline of $3.5)
+      const diesel = dieselPrice ?? 3.5;
+      const adjusted = baseRatePerMile * (diesel / 3.5);
+      setEstimatedRate(Number((m * adjusted).toFixed(2)));
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
