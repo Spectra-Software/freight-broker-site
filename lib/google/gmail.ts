@@ -62,6 +62,30 @@ export function gmailSignatureHtmlToPlainText(html: string): string {
     .trim();
 }
 
+function normalizeForSigCompare(s: string) {
+  return s
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u00a0/g, " ");
+}
+
+/** Remove trailing plain-text signature so it is not duplicated when HTML signature is appended on send. */
+function stripTrailingPlainSignature(body: string, signaturePlain: string): string {
+  const sig = normalizeForSigCompare(signaturePlain).trim();
+  if (!sig) return body;
+
+  let b = normalizeForSigCompare(body);
+  // Remove one or more trailing copies (e.g. user pasted twice) before trimming
+  for (;;) {
+    const t = b.trimEnd();
+    if (!t.endsWith(sig)) break;
+    b = t.slice(0, t.length - sig.length).trimEnd();
+  }
+  return b.trimEnd();
+}
+
 // =========================
 // 🔥 SEND EMAIL (PRODUCTION SAFE)
 // =========================
@@ -86,9 +110,15 @@ export async function sendEmail({
 }) {
   const gmail = getGmail(accessToken);
 
-  async function getGmailSignature(): Promise<string | null> {
-    if (!useGmailSignature) return null;
-    return fetchGmailSignatureHtml(accessToken);
+  let signatureHtmlForSend: string | null = null;
+  if (useGmailSignature) {
+    signatureHtmlForSend = await fetchGmailSignatureHtml(accessToken);
+  }
+
+  let plainBody = typeof body === "string" ? body : "";
+  if (signatureHtmlForSend) {
+    const sigPlain = gmailSignatureHtmlToPlainText(signatureHtmlForSend);
+    plainBody = stripTrailingPlainSignature(plainBody, sigPlain);
   }
 
   // =========================
@@ -152,7 +182,7 @@ export async function sendEmail({
       .replace(/'/g, "&#39;");
   }
 
-  const plainText = typeof body === "string" ? body : "";
+  const plainText = plainBody;
   const htmlBody = (async () => {
     const text = plainText.trim();
     // Normalize newlines
@@ -160,9 +190,7 @@ export async function sendEmail({
     // Split on double newlines for paragraphs
     const paragraphs = normalized.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     const escaped = paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br />")}</p>`).join("\n\n");
-    // attempt to append Gmail signature (HTML) when available
-    const signatureHtml = await getGmailSignature();
-    const withSig = signatureHtml ? `${escaped}<br/>${signatureHtml}` : escaped;
+    const withSig = signatureHtmlForSend ? `${escaped}<br/>${signatureHtmlForSend}` : escaped;
     return `<!DOCTYPE html><html><body>${withSig}</body></html>`;
   })();
 
