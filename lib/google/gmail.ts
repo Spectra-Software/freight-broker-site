@@ -71,19 +71,64 @@ function normalizeForSigCompare(s: string) {
     .replace(/\u00a0/g, " ");
 }
 
+function normalizeLooseLine(s: string) {
+  return normalizeForSigCompare(s).replace(/\s+/g, " ").trim();
+}
+
+/** If the last N lines of body match the signature line-by-line (spacing-tolerant), strip them. */
+function stripByTrailingLines(body: string, signaturePlain: string): string | null {
+  const sigLines = signaturePlain
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!sigLines.length) return null;
+
+  const b = normalizeForSigCompare(body).trimEnd();
+  const bodyLines = b.split("\n");
+  const tailLen = sigLines.length;
+  if (bodyLines.length < tailLen) return null;
+
+  const tail = bodyLines.slice(-tailLen);
+  for (let i = 0; i < tailLen; i++) {
+    if (normalizeLooseLine(tail[i] ?? "") !== normalizeLooseLine(sigLines[i] ?? "")) {
+      return null;
+    }
+  }
+  return bodyLines.slice(0, -tailLen).join("\n").trimEnd();
+}
+
 /** Remove trailing plain-text signature so it is not duplicated when HTML signature is appended on send. */
 function stripTrailingPlainSignature(body: string, signaturePlain: string): string {
   const sig = normalizeForSigCompare(signaturePlain).trim();
   if (!sig) return body;
 
   let b = normalizeForSigCompare(body);
-  // Remove one or more trailing copies (e.g. user pasted twice) before trimming
+  // Pass 1: exact full-text suffix (handles verbatim AI copy)
   for (;;) {
     const t = b.trimEnd();
     if (!t.endsWith(sig)) break;
     b = t.slice(0, t.length - sig.length).trimEnd();
   }
+  // Pass 2: line-based match when spacing/newlines differ slightly from HTML→plain conversion
+  const lineStripped = stripByTrailingLines(b, sig);
+  if (lineStripped !== null && lineStripped.length < b.length) {
+    b = lineStripped;
+  }
   return b.trimEnd();
+}
+
+/** Server-side fetch needs an absolute URL when the DB stores a site-relative path. */
+function resolveAttachmentFetchUrl(fileUrl: string): string {
+  const u = fileUrl.trim();
+  if (/^https?:\/\//i.test(u)) return u;
+  if (u.startsWith("/")) {
+    const base = process.env.NEXTAUTH_URL || process.env.VERCEL_URL;
+    if (base) {
+      const origin = base.startsWith("http") ? base.replace(/\/$/, "") : `https://${base.replace(/\/$/, "")}`;
+      return `${origin}${u}`;
+    }
+  }
+  return u;
 }
 
 // =========================
@@ -95,7 +140,6 @@ export async function sendEmail({
   subject,
   body,
   attachments = [],
-  useGmailSignature = false,
 }: {
   accessToken: string;
   to: string;
@@ -106,14 +150,12 @@ export async function sendEmail({
     url?: string;
     mimeType?: string;
   }[];
-  useGmailSignature?: boolean;
 }) {
   const gmail = getGmail(accessToken);
 
-  let signatureHtmlForSend: string | null = null;
-  if (useGmailSignature) {
-    signatureHtmlForSend = await fetchGmailSignatureHtml(accessToken);
-  }
+  // Always append native Gmail HTML signature when available; strip plain-text tail first so drafts
+  // (including AI-generated bodies that already include the signature) are not duplicated.
+  const signatureHtmlForSend = await fetchGmailSignatureHtml(accessToken);
 
   let plainBody = typeof body === "string" ? body : "";
   if (signatureHtmlForSend) {
@@ -132,7 +174,7 @@ export async function sendEmail({
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000); // 10s limit
 
-        const res = await fetch(file.url, {
+        const res = await fetch(resolveAttachmentFetchUrl(file.url), {
           signal: controller.signal,
         });
 

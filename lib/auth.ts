@@ -166,9 +166,6 @@ export const authOptions: NextAuthOptions = {
         id: dbUser?.id as string,
       };
 
-      // include preference for Gmail signature in session
-      (session as any).user.preferGmailSignature = dbUser?.preferGmailSignature ?? false;
-
       (session as any).accessToken = (token as TokenShape).accessToken;
       (session as any).refreshToken = (token as TokenShape).refreshToken;
 

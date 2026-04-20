@@ -196,10 +196,11 @@ export default function AIPage() {
   async function handleFileUpload(file: File) {
     try {
       // Try binary upload first (smaller payload and more reliable)
+      const encodedName = encodeURIComponent(file.name);
       const res = await fetch("/api/uploads", {
         method: "POST",
         headers: {
-          "x-file-name": file.name,
+          "x-file-name": encodedName,
           "x-file-mime": file.type || "application/pdf",
         },
         body: file,
@@ -207,19 +208,26 @@ export default function AIPage() {
 
       let data: any = {};
 
-      // If binary mode isn't supported by the server, fall back to base64 JSON
-      if (res.status === 415 || res.status === 400) {
+      if (res.ok) {
+        data = await res.json().catch(() => ({}));
+      }
+
+      const binaryWorked = res.ok && typeof data?.url === "string" && data.url.length > 0;
+
+      // Fall back to base64 JSON when binary fails or returns no URL (e.g. some proxies / size limits)
+      if (!binaryWorked) {
         const base64 = await readFileAsBase64(file);
         const res2 = await fetch("/api/uploads", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: file.name, mimeType: file.type || "application/pdf", data: base64 }),
+          body: JSON.stringify({
+            name: file.name,
+            mimeType: file.type || "application/pdf",
+            data: base64,
+          }),
         });
-        data = await res2.json();
+        data = await res2.json().catch(() => ({}));
         if (!res2.ok) throw new Error(data?.error || "Upload failed");
-      } else {
-        data = await res.json();
-        if (!res.ok) throw new Error(data?.error || "Upload failed");
       }
 
       const fullUrl = (data.url && window?.location ? `${window.location.origin}${data.url}` : data.url) as string;
@@ -328,20 +336,32 @@ export default function AIPage() {
             if (!lead.draft) lead.draft = {};
             const existing = Array.isArray(lead.draft.attachments) ? lead.draft.attachments : [];
 
-            // match uploaded files by name (case-insensitive) to AI-suggested attachment names
+            // Match uploads to AI-suggested attachment names when the model lists them.
             const desiredNames = new Set(
               (existing as DraftAttachment[])
                 .map((a) => (a.name || "").toLowerCase())
                 .filter(Boolean)
             );
 
-            const matched = uploadedAttachments.filter((u) =>
-              desiredNames.has((u.name || "").toLowerCase())
+            let matched =
+              desiredNames.size > 0
+                ? uploadedAttachments.filter((u) => desiredNames.has((u.name || "").toLowerCase()))
+                : [];
+
+            // If the model did not name attachments (or names did not match), attach every user upload
+            // to each draft so PDFs still go out with outreach.
+            if (matched.length === 0) {
+              matched = uploadedAttachments;
+            }
+
+            const existingUrls = new Set(
+              (existing as DraftAttachment[]).map((a) => (a.url || "").trim()).filter(Boolean)
             );
+            const uploadsToAdd = matched.filter((a) => !existingUrls.has((a.url || "").trim()));
 
             lead.draft.attachments = [
               ...existing,
-              ...matched.map((a) => ({ name: a.name, url: a.url ?? undefined, mimeType: a.mimeType })),
+              ...uploadsToAdd.map((a) => ({ name: a.name, url: a.url ?? undefined, mimeType: a.mimeType })),
             ];
           }
         }
