@@ -597,7 +597,7 @@ export default function AIPage() {
           <div className="mt-4 flex-1 overflow-y-auto">
             <h2 className="text-sm font-semibold text-white">Draft previews</h2>
 
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 space-y-3 max-h-[48vh] overflow-y-auto pr-1">
               {uniqueDrafts.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-400">
                   Draft previews will appear here after the AI makes them.
