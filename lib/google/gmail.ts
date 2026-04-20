@@ -148,13 +148,21 @@ function uploadPathnameOnly(fileUrl: string): string {
  * Read files from this app's upload dirs (avoids server-side fetch() with relative URLs,
  * which fails in Node when NEXTAUTH_URL is unset).
  */
+function safeDecodePathSegment(seg: string) {
+  try {
+    return decodeURIComponent(seg);
+  } catch {
+    return seg;
+  }
+}
+
 function tryReadUploadFromDisk(fileUrl: string): Buffer | null {
   const pathname = uploadPathnameOnly(fileUrl);
   let filename: string | null = null;
   const m1 = pathname.match(/^\/uploads\/(.+)$/);
   const m2 = pathname.match(/^\/api\/uploads\/files\/(.+)$/);
-  if (m1) filename = m1[1];
-  else if (m2) filename = m2[1];
+  if (m1) filename = safeDecodePathSegment(m1[1]);
+  else if (m2) filename = safeDecodePathSegment(m2[1]);
   if (!filename || filename.includes("..")) return null;
 
   const publicPath = path.join(process.cwd(), "public", "uploads", filename);
@@ -174,7 +182,26 @@ function tryReadUploadFromDisk(fileUrl: string): Buffer | null {
 
 function asciiAttachmentFilename(name: string) {
   const base = (name || "attachment").replace(/"/g, "_").replace(/[\r\n]/g, "_").trim() || "attachment.pdf";
-  return base.replace(/[^\x20-\x7E]/g, "_").slice(0, 200);
+  return base.replace(/[^\x20-\x7E]/g, "_").replace(/[/\\]/g, "_").slice(0, 200);
+}
+
+/** Gmail often collapses parts with the same filename — prefix with order; prefer stored URL stem. */
+function mimeAttachmentFilename(originalName: string, fileUrl: string, zeroBasedIndex: number): string {
+  let stem = (originalName || "").trim() || "attachment.pdf";
+  try {
+    const seg = uploadPathnameOnly(fileUrl).split("/").filter(Boolean).pop() || "";
+    if (seg) stem = safeDecodePathSegment(seg);
+  } catch {
+    /* keep stem */
+  }
+  const safe = asciiAttachmentFilename(stem);
+  const n = zeroBasedIndex + 1;
+  return `${String(n).padStart(2, "0")}-${safe}`;
+}
+
+function primaryMimeType(mime: string | null | undefined) {
+  const m = (mime || "application/pdf").split(";")[0].trim().toLowerCase();
+  return m || "application/pdf";
 }
 
 /** RFC 2045-style wrapping so MIME lines are not arbitrarily long (some transports are picky). */
@@ -220,60 +247,53 @@ export async function sendEmail({
   }
 
   // =========================
-  // FETCH ATTACHMENTS SAFELY
+  // FETCH ATTACHMENTS SAFELY (sequential: avoids stampedes / flaky parallel self-fetches on serverless)
   // =========================
-  const files = await Promise.all(
-    attachments.map(async (file) => {
-      if (!file.url) {
-        console.warn("ATTACHMENT SKIP: missing url for", file.name);
-        return null;
-      }
+  type LoadedAtt = { filename: string; mimeType: string; content: Buffer };
+  const files: LoadedAtt[] = [];
+  for (const file of attachments) {
+    if (!file.url) {
+      console.warn("ATTACHMENT SKIP: missing url for", file.name);
+      continue;
+    }
 
-      try {
-        let buffer: Buffer | null = tryReadUploadFromDisk(file.url);
+    try {
+      let buffer: Buffer | null = tryReadUploadFromDisk(file.url);
 
-        if (!buffer) {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 20000);
+      if (!buffer) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
 
-          const res = await fetch(resolveAttachmentFetchUrl(file.url), {
-            signal: controller.signal,
-          });
+        const res = await fetch(resolveAttachmentFetchUrl(file.url), {
+          signal: controller.signal,
+        });
 
-          clearTimeout(timeout);
+        clearTimeout(timeout);
 
-          if (!res.ok) {
-            console.error("ATTACHMENT HTTP FAILED:", file.url, res.status, res.statusText);
-            return null;
-          }
-
-          buffer = Buffer.from(await res.arrayBuffer());
+        if (!res.ok) {
+          console.error("ATTACHMENT HTTP FAILED:", file.url, res.status, res.statusText);
+          continue;
         }
 
-        // Gmail-safe size guard (10MB per file)
-        if (buffer.byteLength > 10 * 1024 * 1024) {
-          console.warn("ATTACHMENT TOO LARGE:", file.name);
-          return null;
-        }
-
-        return {
-          filename: asciiAttachmentFilename(file.name),
-          mimeType: file.mimeType || "application/pdf",
-          /** Raw PDF bytes — MIME layer applies base64 + wrapping. */
-          content: buffer,
-        };
-      } catch (err) {
-        console.error("ATTACHMENT FETCH FAILED:", file.url, err);
-        return null;
+        buffer = Buffer.from(await res.arrayBuffer());
       }
-    })
-  );
 
-  const validFiles = files.filter(Boolean) as {
-    filename: string;
-    mimeType: string;
-    content: Buffer;
-  }[];
+      if (buffer.byteLength > 10 * 1024 * 1024) {
+        console.warn("ATTACHMENT TOO LARGE:", file.name);
+        continue;
+      }
+
+      files.push({
+        filename: mimeAttachmentFilename(file.name, file.url, files.length),
+        mimeType: primaryMimeType(file.mimeType),
+        content: buffer,
+      });
+    } catch (err) {
+      console.error("ATTACHMENT FETCH FAILED:", file.url, err);
+    }
+  }
+
+  const validFiles = files;
 
   const expectedWithUrl = attachments.filter((a) => !!a.url).length;
   if (expectedWithUrl > 0 && validFiles.length === 0) {
@@ -343,10 +363,11 @@ export async function sendEmail({
 
   // attachments (if any)
   for (const file of validFiles) {
+    const fn = file.filename.replace(/\\/g, "_").replace(/"/g, "_");
     parts.push(`--${boundary}`);
-    parts.push(`Content-Type: ${file.mimeType}; name="${file.filename}"`);
+    parts.push(`Content-Type: ${file.mimeType}; name="${fn}"`);
     parts.push("Content-Transfer-Encoding: base64");
-    parts.push(`Content-Disposition: attachment; filename="${file.filename}"`);
+    parts.push(`Content-Disposition: attachment; filename="${fn}"`);
     parts.push("");
     parts.push(wrapBase64ForMime(file.content.toString("base64")));
   }
