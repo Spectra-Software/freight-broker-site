@@ -57,6 +57,7 @@ export default function DashboardLayout({
     { name: "Dashboard", path: "/dashboard" },
     { name: "Inbox", path: "/dashboard/inbox", badge: newEmails }, // 👈 ADDED
     { name: "AI Assistant", path: "/dashboard/ai" },
+    { name: "Rate Lookup", path: "/dashboard/rate-lookup" },
     { name: "Carrier Lookup", path: "/dashboard/carriers" },
     { name: "Fuel Analytics", path: "/dashboard/fuel" },
     ...(session?.user?.role === "ADMIN"
