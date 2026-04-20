@@ -1,0 +1,584 @@
+﻿"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+type DraftAttachment = {
+  name: string;
+  url?: string | null;
+  mimeType?: string | null;
+  type?: string | null;
+};
+
+type LeadDraft = {
+  company?: string;
+  website?: string;
+  email?: string;
+  location?: string;
+  draft?: {
+    subject?: string;
+    body?: string;
+    attachments?: DraftAttachment[];
+  };
+  attachments?: DraftAttachment[];
+};
+
+type CreatedAttachment = {
+  id?: string;
+  name: string;
+  url?: string | null;
+  mimeType?: string | null;
+};
+
+type CreatedDraft = {
+  id: string;
+  to: string;
+  from: string | null;
+  subject: string;
+  body: string;
+  snippet: string | null;
+  company: string | null;
+  website: string | null;
+  location: string | null;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  attachments: CreatedAttachment[];
+};
+
+type AIResponse = {
+  reply?: string;
+  leads?: LeadDraft[];
+};
+
+function normalizeText(value?: string | null) {
+  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function draftKeyFromLead(lead: Pick<CreatedDraft, "company" | "to" | "subject">) {
+  return [normalizeText(lead.company), normalizeText(lead.to), normalizeText(lead.subject)].join(
+    "|"
+  );
+}
+
+function draftKeyFromCreatedDraft(draft: CreatedDraft) {
+  return draftKeyFromLead({
+    company: draft.company ?? "",
+    to: draft.to,
+    subject: draft.subject,
+  });
+}
+
+function leadKey(lead: LeadDraft) {
+  return [
+    normalizeText(lead.company),
+    normalizeText(lead.email),
+    normalizeText(lead.draft?.subject),
+  ].join("|");
+}
+
+function mergeUniqueDrafts(existing: CreatedDraft[], incoming: CreatedDraft[]) {
+  const map = new Map<string, CreatedDraft>();
+
+  for (const item of existing) {
+    map.set(draftKeyFromCreatedDraft(item), item);
+  }
+
+  for (const item of incoming) {
+    map.set(draftKeyFromCreatedDraft(item), item);
+  }
+
+  return Array.from(map.values());
+}
+
+function dedupeLeads(leads: LeadDraft[]) {
+  const seen = new Set<string>();
+  const output: LeadDraft[] = [];
+
+  for (const lead of leads) {
+    const key = leadKey(lead);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(lead);
+  }
+
+  return output;
+}
+
+export default function AIPage() {
+  const router = useRouter();
+
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploadedAttachments, setUploadedAttachments] = useState<CreatedAttachment[]>([]);
+
+  const [drafts, setDrafts] = useState<CreatedDraft[]>([]);
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  const [lastCreateStats, setLastCreateStats] = useState<
+    | { createdCount: number; skippedCount: number; skippedReasons: string[] }
+    | null
+  >(null);
+
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const uniqueDrafts = useMemo(() => {
+    const map = new Map<string, CreatedDraft>();
+
+    for (const draft of drafts) {
+      map.set(draftKeyFromCreatedDraft(draft), draft);
+    }
+
+    return Array.from(map.values());
+  }, [drafts]);
+
+  const companyButtons = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        key: string;
+        company: string;
+        website: string;
+        email: string;
+      }
+    >();
+
+    for (const draft of uniqueDrafts) {
+      const key = draftKeyFromCreatedDraft(draft);
+      if (map.has(key)) continue;
+
+      map.set(key, {
+        key,
+        company: draft.company?.trim() || draft.to,
+        website: draft.website?.trim() || "No website",
+        email: draft.to,
+      });
+    }
+
+    return Array.from(map.values());
+  }, [uniqueDrafts]);
+
+  const selectedDraft =
+    uniqueDrafts.find((draft) => draftKeyFromCreatedDraft(draft) === selectedDraftId) ||
+    uniqueDrafts[0] ||
+    null;
+
+  useEffect(() => {
+    if (!selectedDraftId && uniqueDrafts.length > 0) {
+      setSelectedDraftId(draftKeyFromCreatedDraft(uniqueDrafts[0]));
+    }
+  }, [selectedDraftId, uniqueDrafts]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  // Upload helpers
+  async function readFileAsBase64(file: File) {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // strip off data:*/*;base64,
+        const idx = result.indexOf("base64,");
+        resolve(idx === -1 ? result : result.slice(idx + 7));
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleFileUpload(file: File) {
+    try {
+      const base64 = await readFileAsBase64(file);
+
+      const res = await fetch("/api/uploads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, mimeType: file.type || "application/pdf", data: base64 }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Upload failed");
+
+      const fullUrl = (data.url && window?.location ? `${window.location.origin}${data.url}` : data.url) as string;
+
+      setUploadedAttachments((prev) => [
+        ...prev,
+        { name: data.name || file.name, url: fullUrl, mimeType: data.mimeType || file.type },
+      ]);
+    } catch (err) {
+      console.error("Upload error:", err);
+      // minimal user feedback: add assistant message
+      setMessages((prev) => [...prev, { role: "assistant", content: "Failed to upload attachment." }]);
+    }
+  }
+
+  const sendMessage = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || loading) return;
+
+    const userMsg: ChatMessage = { role: "user", content: trimmed };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const existingLeads = uniqueDrafts.map((draft) => ({
+        company: draft.company ?? draft.to,
+        website: draft.website ?? "",
+        email: draft.to,
+      }));
+
+      const aiRes = await fetch("/api/ai", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: trimmed,
+          existingLeads,
+        }),
+      });
+
+      const aiData = (await aiRes.json()) as AIResponse & { error?: string };
+
+      if (!aiRes.ok) {
+        throw new Error(aiData.error || "AI failed");
+      }
+
+      const replyText = aiData.reply?.trim() || "Done.";
+
+      setMessages((prev) => [...prev, { role: "assistant", content: replyText }]);
+
+      const incomingLeads = Array.isArray(aiData.leads) ? dedupeLeads(aiData.leads) : [];
+
+      if (incomingLeads.length > 0) {
+        // If the user uploaded attachments, attach them to each generated lead draft
+        if (uploadedAttachments.length > 0) {
+          for (const lead of incomingLeads) {
+            if (!lead.draft) lead.draft = {};
+            const existing = Array.isArray(lead.draft.attachments) ? lead.draft.attachments : [];
+
+            lead.draft.attachments = [
+              ...existing,
+              ...uploadedAttachments.map((a) => ({ name: a.name, url: a.url ?? undefined, mimeType: a.mimeType })),
+            ];
+          }
+        }
+        const createRes = await fetch("/api/gmail/create-drafts", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ leads: incomingLeads }),
+        });
+
+        const createData: { drafts?: CreatedDraft[]; error?: string; createdCount?: number; skipped?: any[] } =
+          await createRes.json();
+
+        if (!createRes.ok) {
+          console.error("Draft creation failed:", createData);
+          return;
+        }
+
+        // Log the raw response for easier debugging when drafts are not created
+        console.log("/api/gmail/create-drafts response:", createData);
+
+        const createdDrafts: CreatedDraft[] = Array.isArray(createData.drafts)
+          ? createData.drafts
+          : [];
+
+        const createdCount = typeof createData.createdCount === "number" ? createData.createdCount : createdDrafts.length;
+        const skippedArr = Array.isArray(createData.skipped) ? createData.skipped : [];
+
+        if (createdDrafts.length > 0) {
+          setDrafts((prev) => mergeUniqueDrafts(prev, createdDrafts));
+          setSelectedDraftId(draftKeyFromCreatedDraft(createdDrafts[0]));
+        } else {
+          // If no drafts were created, show a clear assistant message with server-provided reasons (if any)
+          const skipped = skippedArr;
+
+          // Update UI stats for created/skipped
+          setLastCreateStats({
+            createdCount,
+            skippedCount: skipped.length,
+            skippedReasons: skipped.map((s: any) => s.reason || "unknown"),
+          });
+
+          if (skipped.length > 0) {
+            const reasons = skipped.map((s: any, i: number) => `${i + 1}. ${s.reason || "unknown"}`).join("; ");
+
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: `No drafts were created. ${skipped.length} lead(s) were skipped: ${reasons}`,
+              },
+            ]);
+          } else {
+            setMessages((prev) => [
+              ...prev,
+              { role: "assistant", content: "No drafts were created by the server." },
+            ]);
+          }
+        }
+      }
+
+      // Do not navigate away — just update counter and previews in-place
+    } catch (err) {
+      console.error(err);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Error: AI failed to respond.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const goToApprovals = () => {
+    // Navigate to the inbox where the user can select the "For Approval" tab
+    router.push("/dashboard/inbox");
+  };
+
+  return (
+    <div className="min-h-[calc(100vh-6rem)] w-full">
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-white">AI Assistant</h1>
+        <div>
+          <div className="text-sm text-gray-400">
+            {uniqueDrafts.length} draft{uniqueDrafts.length === 1 ? "" : "s"} made
+          </div>
+
+          {lastCreateStats && (
+            <div className="mt-1 text-xs text-gray-400">
+              Created: {lastCreateStats.createdCount} • Skipped: {lastCreateStats.skippedCount}
+              {lastCreateStats.skippedCount > 0 && (
+                <div className="mt-1 text-[11px] text-gray-300">
+                  {lastCreateStats.skippedReasons.slice(0, 3).join("; ")}
+                  {lastCreateStats.skippedReasons.length > 3 ? "..." : ""}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_0.95fr]">
+        <div className="flex flex-col rounded-3xl border border-white/10 bg-white/5 p-4 shadow-lg">
+          <div className="h-[560px] overflow-y-auto space-y-3 rounded-2xl bg-black/20 p-4">
+            {messages.length === 0 && (
+              <div className="text-sm text-gray-400">
+                Ask me to find shippers, build outreach drafts, or compile leads.
+              </div>
+            )}
+
+            {messages.map((msg, i) => (
+              <div key={i} className={msg.role === "user" ? "text-right" : "text-left"}>
+                <div
+                  className={`inline-block max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+                    msg.role === "user" ? "bg-blue-500 text-white" : "bg-white/10 text-gray-100"
+                  }`}
+                >
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </div>
+              </div>
+            ))}
+
+            {loading && <div className="text-sm text-gray-400">Thinking...</div>}
+
+            <div ref={bottomRef} />
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") sendMessage();
+              }}
+              className="flex-1 rounded-2xl border border-blue-400/60 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-gray-500 focus:border-blue-400"
+              placeholder="Ask AI to find leads, draft emails..."
+            />
+
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                await handleFileUpload(file);
+                // clear input
+                e.currentTarget.value = "";
+              }}
+              className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white"
+            />
+
+            <button
+              onClick={sendMessage}
+              disabled={loading}
+              className="rounded-2xl bg-blue-500 px-5 py-3 text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Send
+            </button>
+          </div>
+
+          {uploadedAttachments.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              <div className="text-xs text-gray-400">Uploaded attachments</div>
+              <div className="flex flex-wrap gap-2">
+                {uploadedAttachments.map((a, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-gray-200"
+                  >
+                    <span className="truncate max-w-[12rem]">{a.name}</span>
+                    <button
+                      onClick={() =>
+                        setUploadedAttachments((prev) => prev.filter((_, idx) => idx !== i))
+                      }
+                      className="ml-1 text-[11px] text-rose-400"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col rounded-3xl border border-white/10 bg-white/5 p-4 shadow-lg">
+          <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
+            <div>
+              <div className="text-sm text-gray-400">Drafts made</div>
+              <div className="text-4xl font-bold text-white">{uniqueDrafts.length}</div>
+            </div>
+
+            <button
+              onClick={goToApprovals}
+              className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-600"
+            >
+              Go to Approvals
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <h2 className="text-sm font-semibold text-white">Company list</h2>
+            <div className="mt-3 max-h-56 overflow-y-auto space-y-2 pr-1">
+              {companyButtons.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-400">
+                  No draft companies yet.
+                </div>
+              ) : (
+                companyButtons.map((item: {
+                  key: string;
+                  company: string;
+                  website: string;
+                  email: string;
+                }) => {
+                  const isSelected =
+                    selectedDraft &&
+                    draftKeyFromCreatedDraft(selectedDraft) === item.key;
+
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => setSelectedDraftId(item.key)}
+                      className={`w-full rounded-2xl border p-3 text-left transition ${
+                        isSelected
+                          ? "border-blue-400 bg-blue-500/15"
+                          : "border-white/10 bg-black/20 hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="truncate text-sm font-semibold text-white">
+                        {item.company}
+                      </div>
+                      <div className="truncate text-xs text-gray-400">{item.website}</div>
+                      <div className="truncate text-xs text-gray-400">{item.email}</div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 flex-1 overflow-y-auto">
+            <h2 className="text-sm font-semibold text-white">Draft previews</h2>
+
+            <div className="mt-3 space-y-3">
+              {uniqueDrafts.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-400">
+                  Draft previews will appear here after the AI makes them.
+                </div>
+              ) : (
+                uniqueDrafts.map((draft: CreatedDraft) => {
+                  const isSelected =
+                    selectedDraftId === draftKeyFromCreatedDraft(draft) ||
+                    (!selectedDraftId &&
+                      draftKeyFromCreatedDraft(uniqueDrafts[0]) ===
+                        draftKeyFromCreatedDraft(draft));
+
+                  return (
+                    <button
+                      key={draft.id}
+                      onClick={() => setSelectedDraftId(draftKeyFromCreatedDraft(draft))}
+                      className={`w-full rounded-2xl border p-4 text-left transition ${
+                        isSelected
+                          ? "border-blue-400 bg-blue-500/15"
+                          : "border-white/10 bg-black/20 hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">
+                            {draft.subject}
+                          </p>
+                          <p className="mt-1 truncate text-xs text-gray-400">
+                            {draft.company || draft.to}
+                          </p>
+                          <p className="truncate text-xs text-gray-500">{draft.to}</p>
+                        </div>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-gray-300">
+                          Draft
+                        </span>
+                      </div>
+
+                      <p className="mt-3 line-clamp-3 text-xs leading-5 text-gray-300">
+                        {draft.body}
+                      </p>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {selectedDraft && (
+            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-xs text-gray-400">Selected preview</div>
+              <div className="mt-1 text-sm font-semibold text-white">
+                {selectedDraft.subject}
+              </div>
+              <div className="mt-2 text-xs text-gray-400">
+                {selectedDraft.company || selectedDraft.to}
+              </div>
+              <div className="mt-1 text-xs text-gray-500">{selectedDraft.to}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

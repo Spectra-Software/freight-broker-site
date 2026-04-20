@@ -1,0 +1,157 @@
+﻿import { NextResponse } from "next/server";
+import Groq from "groq-sdk";
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY!,
+});
+
+type ExistingLead = {
+  company?: string;
+  website?: string;
+  email?: string;
+};
+
+function stripCodeFences(raw: string) {
+  let text = raw.trim();
+  text = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "");
+  text = text.replace(/\s*```$/i, "");
+  return text.trim();
+}
+
+function safeParseJSON(raw: string) {
+  const cleaned = stripCodeFences(raw);
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return null;
+  }
+
+  const jsonText = cleaned.slice(firstBrace, lastBrace + 1);
+
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body: unknown = await req.json().catch(() => ({}));
+
+    const message =
+      body &&
+      typeof body === "object" &&
+      "message" in body &&
+      typeof (body as { message?: unknown }).message === "string"
+        ? ((body as { message: string }).message.trim())
+        : "";
+
+    const existingLeads: ExistingLead[] =
+      body &&
+      typeof body === "object" &&
+      "existingLeads" in body &&
+      Array.isArray((body as { existingLeads?: unknown }).existingLeads)
+        ? ((body as { existingLeads: ExistingLead[] }).existingLeads)
+        : [];
+
+    if (!message) {
+      return NextResponse.json({ error: "No message provided" }, { status: 400 });
+    }
+
+    const existingLeadText =
+      existingLeads.length > 0
+        ? existingLeads
+            .slice(0, 50)
+            .map((lead: ExistingLead, index: number) => {
+              return `${index + 1}. ${lead.company || "Unknown company"} | ${lead.website || "No website"} | ${lead.email || "No email"}`;
+            })
+            .join("\n")
+        : "None";
+
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.4,
+      messages: [
+        {
+          role: "system",
+          content: `
+You are an AI assistant for a freight broker SaaS platform.
+
+You help find shippers and generate outreach drafts.
+
+Important rules:
+- Return JSON ONLY.
+- Do not wrap the response in markdown fences.
+- Do not repeat any lead that already appears in the existing leads list.
+- If the user asks for shippers/leads, return 3 to 10 leads when possible.
+- Keep outreach emails short, professional, and persuasive.
+- Mention freight / logistics value.
+- Email addresses should look realistic.
+- The reply field must be human-readable and concise.
+
+Existing leads already on screen:
+${existingLeadText}
+
+If this is a lead request, return exactly this structure:
+{
+  "reply": "clean formatted summary for UI",
+  "leads": [
+    {
+      "company": "Company Name",
+      "website": "https://...",
+      "email": "contact@company.com",
+      "location": "City, State",
+      "draft": {
+        "subject": "Email subject line",
+        "body": "Full outreach email",
+        "attachments": [
+          {
+            "name": "capabilities.pdf",
+            "mimeType": "application/pdf"
+          }
+        ]
+      }
+    }
+  ]
+}
+
+If this is not a lead request, return:
+{
+  "reply": "normal formatted answer"
+}
+          `.trim(),
+        },
+        {
+          role: "user",
+          content: message,
+        },
+      ],
+    });
+
+    const raw = completion.choices?.[0]?.message?.content?.trim() || "";
+    const parsed = safeParseJSON(raw);
+
+    if (parsed && typeof parsed === "object") {
+      if (typeof (parsed as { reply?: unknown }).reply !== "string") {
+        (parsed as { reply: string }).reply = raw || "No response from AI";
+      }
+
+      return NextResponse.json(parsed);
+    }
+
+    return NextResponse.json({
+      reply: raw || "No response from AI",
+    });
+  } catch (error: unknown) {
+    console.error("GROQ ERROR:", error);
+
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "AI failed to respond. Check server logs.",
+      },
+      { status: 500 }
+    );
+  }
+}

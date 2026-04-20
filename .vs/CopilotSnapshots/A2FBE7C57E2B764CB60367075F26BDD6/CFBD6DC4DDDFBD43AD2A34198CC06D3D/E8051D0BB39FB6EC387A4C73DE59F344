@@ -1,0 +1,58 @@
+﻿import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body: unknown = await req.json().catch(() => ({}));
+
+    const ids: string[] =
+      body &&
+      typeof body === "object" &&
+      "ids" in body &&
+      Array.isArray((body as { ids?: unknown }).ids)
+        ? ((body as { ids: string[] }).ids)
+        : [];
+
+    if (!ids.length) {
+      return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
+    }
+
+    // Only delete drafts (status = DRAFT)
+    const drafts = await prisma.email.findMany({
+      where: { id: { in: ids }, status: "DRAFT" },
+      include: { attachments: true },
+    });
+
+    if (!drafts.length) {
+      return NextResponse.json({ error: "No drafts found" }, { status: 404 });
+    }
+
+    // delete attachments rows first
+    const attachmentIds: string[] = drafts.flatMap((d) => (d.attachments || []).map((a) => a.id));
+
+    if (attachmentIds.length) {
+      await prisma.attachment.deleteMany({ where: { id: { in: attachmentIds } } });
+    }
+
+    await prisma.email.deleteMany({ where: { id: { in: ids } } });
+
+    return NextResponse.json({ success: true, deletedCount: drafts.length });
+  } catch (error: unknown) {
+    console.error("DELETE DRAFTS ERROR:", error);
+
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to delete drafts",
+      },
+      { status: 500 }
+    );
+  }
+}

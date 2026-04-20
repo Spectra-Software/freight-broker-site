@@ -1,0 +1,52 @@
+﻿import { NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
+
+type UploadRequest = {
+  name: string;
+  mimeType: string;
+  data: string; // base64
+};
+
+export async function POST(req: Request) {
+  try {
+    const body: unknown = await req.json().catch(() => null);
+
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+
+    const { name, mimeType, data } = body as UploadRequest;
+
+    if (!name || !mimeType || !data) {
+      return NextResponse.json({ error: "Missing upload fields" }, { status: 400 });
+    }
+
+    // Only allow PDFs for now
+    if (!mimeType.includes("pdf") && mimeType !== "application/octet-stream") {
+      return NextResponse.json({ error: "Only PDF uploads are allowed" }, { status: 400 });
+    }
+
+    const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
+
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // sanitize filename
+    const safeName = name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const filename = `${Date.now()}_${safeName}`;
+    const filepath = path.join(uploadsDir, filename);
+
+    const buffer = Buffer.from(data, "base64");
+
+    fs.writeFileSync(filepath, buffer);
+
+    const url = `/uploads/${filename}`;
+
+    return NextResponse.json({ ok: true, url, name: safeName, mimeType });
+  } catch (err: unknown) {
+    console.error("UPLOAD ERROR:", err);
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Upload failed" }, { status: 500 });
+  }
+}

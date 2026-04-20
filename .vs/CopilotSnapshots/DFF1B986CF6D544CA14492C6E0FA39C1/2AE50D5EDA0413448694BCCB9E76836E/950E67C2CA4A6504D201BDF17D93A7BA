@@ -1,0 +1,130 @@
+﻿generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String?
+  email        String        @unique
+  image        String?
+  role         Role          @default(USER)
+  plan         PlanTier      @default(BASIC)
+  createdAt    DateTime      @default(now())
+  company      String?
+  isOnboarded  Boolean       @default(false)
+  phone        String?
+
+  accessToken   String?
+  refreshToken  String?
+  tokenExpiry   DateTime?
+
+  applications  Application[]
+  emails        Email[]
+}
+
+model Invite {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  plan      PlanTier
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Application {
+  id          String    @id @default(cuid())
+  name        String
+  company     String
+  email       String
+  comments    String?
+  desiredPlan PlanTier
+  status      AppStatus @default(PENDING)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+
+  @@index([email])
+  @@index([status])
+}
+
+model Email {
+  id          String   @id @default(cuid())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  type        EmailType   @default(OUTBOUND)
+  status      EmailStatus @default(DRAFT)
+
+  to          String
+  from        String?
+  subject     String
+  body        String
+  snippet     String?
+
+  company     String?
+  website     String?
+  location    String?
+
+  scheduledAt DateTime?
+  sentAt      DateTime?
+
+  parentId    String?
+  parent      Email?   @relation("FollowUp", fields: [parentId], references: [id])
+  followUps   Email[]  @relation("FollowUp")
+
+  attachments Attachment[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+
+  emailId   String
+  email     Email    @relation(fields: [emailId], references: [id])
+
+  name      String
+  url       String?
+  mimeType  String?
+
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AppStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+enum PlanTier {
+  BASIC
+  MID
+  PREMIUM
+}
+
+enum EmailStatus {
+  DRAFT
+  SENT
+  FOLLOW_UP
+}
+
+enum EmailType {
+  INBOUND
+  OUTBOUND
+}

@@ -1,0 +1,118 @@
+﻿"use client";
+
+import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+export default function DashboardPage() {
+  const router = useRouter();
+
+  const [emailsSent30d, setEmailsSent30d] = useState(128);
+  const [newEmails, setNewEmails] = useState(3);
+  const [lastSynced, setLastSynced] = useState("Just now");
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNewEmails((prev) => Math.max(0, prev + (Math.random() > 0.55 ? 1 : -1)));
+      setLastSynced(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      );
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
+        <p className="mt-2 text-sm text-gray-400">
+          A quick look at your inbox activity and sending history.
+        </p>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
+        >
+          <p className="text-sm text-gray-400">Emails sent</p>
+          <h2 className="mt-3 text-4xl font-bold tracking-tight">
+            {emailsSent30d}
+          </h2>
+          <p className="mt-2 text-sm text-gray-300">Rolling last 30 days</p>
+
+          <div className="mt-5 h-2 rounded-full bg-white/10">
+            <div className="h-2 w-[72%] rounded-full bg-gradient-to-r from-blue-500 to-cyan-400" />
+          </div>
+
+          <p className="mt-3 text-xs text-gray-500">
+            This will later pull from your sent message logs.
+          </p>
+        </motion.div>
+
+        <motion.button
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ scale: 1.02 }}
+          onClick={() => router.push("/dashboard/inbox")}
+          className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/15 to-green-500/10 p-6 text-left backdrop-blur-xl transition hover:border-emerald-400/40"
+        >
+          <p className="text-sm text-gray-400">New emails</p>
+          <h2 className="mt-3 text-4xl font-bold tracking-tight">
+            {newEmails}
+          </h2>
+          <p className="mt-2 text-sm text-gray-300">
+            Updated {lastSynced}
+          </p>
+
+          <div className="mt-5 inline-flex rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white/80">
+            Open inbox
+          </div>
+
+          <p className="mt-3 text-xs text-gray-500">
+            This will later sync from the connected Gmail inbox.
+          </p>
+        </motion.button>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+          <p className="text-sm text-gray-400">Inbox status</p>
+          <h3 className="mt-2 text-xl font-semibold">Gmail sync</h3>
+          <p className="mt-3 text-sm leading-6 text-gray-300">
+            This section will later show the connected inbox, unread mail, and
+            reply activity inside the app.
+          </p>
+
+          <button
+            onClick={() => router.push("/dashboard/inbox")}
+            className="mt-6 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+          >
+            Go to inbox
+          </button>
+        </div>
+
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+          <p className="text-sm text-gray-400">Future slots</p>
+          <h3 className="mt-2 text-xl font-semibold">Room to grow</h3>
+          <div className="mt-4 space-y-3 text-sm text-gray-300">
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+              AI assistant activity
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+              Drafts waiting for review
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+              Campaign performance
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

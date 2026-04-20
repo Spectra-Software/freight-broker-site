@@ -1,0 +1,100 @@
+﻿import { NextResponse } from "next/server";
+import Groq from "groq-sdk";
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
+
+function stripCodeFences(raw: string) {
+  let text = raw.trim();
+  text = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "");
+  text = text.replace(/\s*```$/i, "");
+  return text.trim();
+}
+
+function extractJsonText(raw: string) {
+  const cleaned = stripCodeFences(raw);
+  const start = cleaned.search(/[\{\[]/);
+  if (start === -1) return null;
+
+  const open = cleaned[start];
+  const close = open === "{" ? "}" : "]";
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) return cleaned.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+function safeParseJSON(raw: string) {
+  try {
+    const jsonText = extractJsonText(raw);
+    if (!jsonText) return null;
+    return JSON.parse(jsonText);
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body: unknown = await req.json().catch(() => ({}));
+
+    const message =
+      body && typeof body === "object" && "message" in body && typeof (body as any).message === "string"
+        ? (body as any).message.trim()
+        : "";
+
+    const existingLeads = Array.isArray((body as any).existingLeads) ? (body as any).existingLeads : [];
+    const attachments = Array.isArray((body as any).attachments) ? (body as any).attachments : [];
+
+    if (!message) return NextResponse.json({ error: "No message provided" }, { status: 400 });
+
+    const existingText = existingLeads.length
+      ? existingLeads.slice(0, 50).map((l: any, i: number) => `${i + 1}. ${l.company || "Unknown"} | ${l.website || ""} | ${l.email || ""}`).join("\n")
+      : "None";
+
+    const attachmentText = attachments.length
+      ? attachments.map((a: any) => `${a.name} (${a.url || "no-url"})`).join(", ")
+      : "None";
+
+    const system = `You are an AI assistant for a freight broker platform.\n
+Behaviors:\n- ALWAYS return valid JSON.\n- If asked to find shippers/leads, return a JSON object with fields: reply (string) and leads (array).\n- Each lead must have company, website, email, location (if known), draft with subject and body, and optional attachments (name, mimeType).\n- If you cannot produce leads, return leads: [] and provide a helpful reply.\n- Keep outreach short and professional.\n\nExisting leads:\n${existingText}\n\nUploaded attachments available:\n${attachmentText}\n
+Respond only with JSON.`;
+
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.3,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: message },
+      ],
+    });
+
+    const raw = completion.choices?.[0]?.message?.content?.trim() || "";
+    console.log("AI RAW RESPONSE:", raw);
+
+    const parsed = safeParseJSON(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return NextResponse.json({ reply: typeof (parsed as any).reply === "string" ? (parsed as any).reply : "Done.", leads: Array.isArray((parsed as any).leads) ? (parsed as any).leads : [] });
+    }
+
+    return NextResponse.json({ reply: raw || "No response from AI", leads: [] });
+  } catch (err: unknown) {
+    console.error("AI V2 ERROR:", err);
+    return NextResponse.json({ error: err instanceof Error ? err.message : "AI failed" }, { status: 500 });
+  }
+}

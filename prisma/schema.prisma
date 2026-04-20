@@ -18,6 +18,7 @@ model User {
   company      String?
   isOnboarded  Boolean       @default(false)
   phone        String?
+  preferGmailSignature Boolean? @default(false)
 
   accessToken   String?
   refreshToken  String?
