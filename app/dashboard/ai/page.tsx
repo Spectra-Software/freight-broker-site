@@ -278,11 +278,31 @@ export default function AIPage() {
         throw new Error(aiData.error || "AI failed");
       }
 
-      const replyText = aiData.reply?.trim() || "Done.";
+      let replyText = aiData.reply?.trim() || "Done.";
+      let leadsForDrafts: LeadDraft[] = Array.isArray(aiData.leads) ? dedupeLeads(aiData.leads as LeadDraft[]) : [];
+
+      // If the API fell back to putting the whole JSON object in `reply` (parse failure), recover client-side.
+      if (replyText.startsWith("{") && leadsForDrafts.length === 0) {
+        try {
+          const blob = replyText
+            .trim()
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/\s*```$/i, "")
+            .trim();
+          const nested = JSON.parse(blob) as AIResponse;
+          if (nested && typeof nested.reply === "string" && Array.isArray(nested.leads)) {
+            replyText = nested.reply.trim() || "Done.";
+            leadsForDrafts = dedupeLeads(nested.leads as LeadDraft[]);
+          }
+        } catch {
+          /* keep defaults */
+        }
+      }
 
       setMessages((prev) => [...prev, { role: "assistant", content: replyText }]);
 
-      const incomingLeadsRaw = Array.isArray(aiData.leads) ? dedupeLeads(aiData.leads) : [];
+      const incomingLeadsRaw = leadsForDrafts;
 
       // sanitize AI-provided text fields: unescape literal backslash-n sequences into real newlines
       function unescapeNewlines(value?: string | null) {
@@ -379,6 +399,13 @@ export default function AIPage() {
 
         if (!createRes.ok) {
           console.error("Draft creation failed:", createData);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `Drafts were not saved: ${createData.error || createRes.statusText || "Unknown error"}`,
+            },
+          ]);
           return;
         }
 

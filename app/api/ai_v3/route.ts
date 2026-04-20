@@ -42,18 +42,92 @@ function extractJsonText(raw: string) {
   return null;
 }
 
-function safeParseJSON(raw: string) {
-  try {
-    const jsonText = extractJsonText(raw);
-    if (!jsonText) return null;
-    return JSON.parse(jsonText);
-  } catch {
-    return null;
-  }
-}
-
 function embedInPromptLiteral(s: string) {
   return s.replace(/`/g, "'").replace(/\$\{/g, "$\u007b");
+}
+
+/** Avoid raw double-quotes / newlines in free-text blocks so the model is not steered into invalid JSON. */
+function safePromptFragment(s: string, maxLen: number) {
+  return embedInPromptLiteral(String(s ?? ""))
+    .replace(/"/g, "'")
+    .replace(/\r\n/g, " ")
+    .replace(/[\r\n\t]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLen);
+}
+
+/**
+ * JSON.parse often fails on LLM output when string values contain literal newlines.
+ * Escape those only while inside a double-quoted string (respect \\ and \").
+ */
+function escapeRawNewlinesInJsonStrings(json: string): string {
+  let out = "";
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < json.length; i++) {
+    const ch = json[i];
+    if (escape) {
+      out += ch;
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out += ch;
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      out += ch;
+      continue;
+    }
+    if (inString) {
+      if (ch === "\n") {
+        out += "\\n";
+        continue;
+      }
+      if (ch === "\r") {
+        out += "\\r";
+        continue;
+      }
+      if (ch === "\t") {
+        out += "\\t";
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function parseAiResponseJson(raw: string): Record<string, unknown> | null {
+  const attempts: string[] = [];
+  const extracted = extractJsonText(raw);
+  if (extracted) attempts.push(extracted);
+  const fenced = stripCodeFences(raw);
+  if (!attempts.includes(fenced)) attempts.push(fenced);
+  if (!attempts.includes(raw.trim())) attempts.push(raw.trim());
+
+  for (const candidate of attempts) {
+    try {
+      const repaired = escapeRawNewlinesInJsonStrings(candidate);
+      const parsed = JSON.parse(repaired) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      try {
+        const parsed = JSON.parse(candidate) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        /* next */
+      }
+    }
+  }
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -71,11 +145,18 @@ export async function POST(req: Request) {
     if (!message) return NextResponse.json({ error: "No message provided" }, { status: 400 });
 
     const existingText = existingLeads.length
-      ? existingLeads.slice(0, 50).map((l: any, i: number) => `${i + 1}. ${l.company || "Unknown"} | ${l.website || ""} | ${l.email || ""}`).join("\\n")
+      ? existingLeads
+          .slice(0, 50)
+          .map((l: any, i: number) =>
+            `${i + 1}. ${safePromptFragment(l.company || "Unknown", 120)} | ${safePromptFragment(l.website || "", 200)} | ${safePromptFragment(l.email || "", 120)}`
+          )
+          .join("\\n")
       : "None";
 
     const attachmentText = attachments.length
-      ? attachments.map((a: any) => `${a.name} (${a.url || "no-url"})`).join(", ")
+      ? attachments
+          .map((a: any) => `${safePromptFragment(a.name || "file", 200)} (${safePromptFragment(a.url || "no-url", 500)})`)
+          .join(", ")
       : "None";
 
     let gmailSignaturePlain = "";
@@ -120,9 +201,12 @@ export async function POST(req: Request) {
     const raw = completion.choices?.[0]?.message?.content?.trim() || "";
     console.log("AI V3 RAW RESPONSE:", raw);
 
-    const parsed = safeParseJSON(raw);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return NextResponse.json({ reply: typeof (parsed as any).reply === "string" ? (parsed as any).reply : "Done.", leads: Array.isArray((parsed as any).leads) ? (parsed as any).leads : [] });
+    const parsed = parseAiResponseJson(raw);
+    if (parsed) {
+      return NextResponse.json({
+        reply: typeof parsed.reply === "string" ? parsed.reply : "Done.",
+        leads: Array.isArray(parsed.leads) ? parsed.leads : [],
+      });
     }
 
     return NextResponse.json({ reply: raw || "No response from AI", leads: [] });
