@@ -8,29 +8,19 @@ interface CarrierData {
   legalName?: string;
   dbaName?: string;
   phyStreet?: string;
-  phyCity?: string;
-  phyState?: string;
-  phyZip?: string;
-  phyCountry?: string;
   mailStreet?: string;
-  mailCity?: string;
-  mailState?: string;
-  mailZip?: string;
-  mailCountry?: string;
   phone?: string;
-  fax?: string;
-  carrierOperation?: string;
-  oosStatus?: string;
+  dotStatus?: string;
+  operatingAuthorityStatus?: string;
   oosDate?: string;
   safetyRating?: string;
-  safetyRatingDate?: string;
   powerUnits?: string;
   drivers?: string;
   mcs150FormDate?: string;
   operationClassification?: string;
-  carrierShipperOperation?: string;
-  hmShipperOperation?: string;
-  authorizedStates?: string;
+  carrierOperation?: string;
+  cargoCarried?: string;
+  entityType?: string;
   [key: string]: string | undefined;
 }
 
@@ -39,43 +29,28 @@ const LABEL_MAP: Record<string, string> = {
   mcMxffNumber: "MC/MX Number",
   legalName: "Legal Name",
   dbaName: "DBA Name",
-  phyStreet: "Physical Street",
-  phyCity: "Physical City",
-  phyState: "Physical State",
-  phyZip: "Physical Zip",
-  phyCountry: "Physical Country",
-  mailStreet: "Mailing Street",
-  mailCity: "Mailing City",
-  mailState: "Mailing State",
-  mailZip: "Mailing Zip",
-  mailCountry: "Mailing Country",
+  phyStreet: "Physical Address",
+  mailStreet: "Mailing Address",
   phone: "Phone",
-  fax: "Fax",
-  carrierOperation: "Carrier Operation",
-  oosStatus: "Out of Service Status",
+  dotStatus: "USDOT Status",
+  operatingAuthorityStatus: "Operating Authority Status",
   oosDate: "Out of Service Date",
   safetyRating: "Safety Rating",
-  safetyRatingDate: "Safety Rating Date",
   powerUnits: "Power Units",
   drivers: "Drivers",
   mcs150FormDate: "MCS-150 Form Date",
   operationClassification: "Operation Classification",
-  carrierShipperOperation: "Carrier Shipper Operation",
-  hmShipperOperation: "HM Shipper Operation",
-  authorizedStates: "Authorized States",
+  carrierOperation: "Carrier Operation",
+  cargoCarried: "Cargo Carried",
+  entityType: "Entity Type",
 };
 
 const HIDDEN_FIELDS = new Set(["content"]);
-const ADDRESS_FIELDS = new Set(["phyStreet", "phyCity", "phyState", "phyZip", "phyCountry", "mailStreet", "mailCity", "mailState", "mailZip", "mailCountry"]);
+const ADDRESS_FIELDS = new Set(["phyStreet", "mailStreet"]);
+const HEADER_FIELDS = new Set(["legalName", "dbaName", "dotNumber", "mcMxffNumber", "powerUnits", "drivers", "phone", "dotStatus", "operatingAuthorityStatus", "oosDate", "safetyRating"]);
 
-function formatAddress(c: CarrierData, prefix: "phy" | "mail"): string {
-  const street = c[`${prefix}Street`] || "";
-  const city = c[`${prefix}City`] || "";
-  const state = c[`${prefix}State`] || "";
-  const zip = c[`${prefix}Zip`] || "";
-  const country = c[`${prefix}Country`] || "";
-  const parts = [street, city && state ? `${city}, ${state}` : city || state, zip, country].filter(Boolean);
-  return parts.join(" ") || "—";
+function formatAddress(c: CarrierData, key: "phyStreet" | "mailStreet"): string {
+  return c[key] || "\u2014";
 }
 
 export default function CarriersPage() {
@@ -156,8 +131,10 @@ export default function CarriersPage() {
         {carriers.length > 0 && (
           <div className="space-y-4">
             {carriers.map((c, i) => {
-              const oos = c.oosStatus === "Y";
+              const oos = c.dotStatus === "OUT-OF-SERVICE" || c.oosDate && c.oosDate !== "None";
               const safety = c.safetyRating?.toUpperCase();
+              const dotActive = c.dotStatus?.toUpperCase() === "ACTIVE";
+              const authStatus = c.operatingAuthorityStatus;
 
               return (
                 <div key={i} className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
@@ -169,6 +146,9 @@ export default function CarriersPage() {
                     <div className="flex flex-col items-end gap-1">
                       {oos && (
                         <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-semibold text-red-400">OUT OF SERVICE</span>
+                      )}
+                      {dotActive && !oos && (
+                        <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs font-semibold text-green-400">ACTIVE</span>
                       )}
                       {safety && safety !== "NONE" && (
                         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -184,29 +164,29 @@ export default function CarriersPage() {
                   </div>
 
                   {/* Key stats row */}
-                  <div className="flex gap-4 text-sm">
-                    <div className="text-gray-400">DOT: <span className="font-medium text-white">{c.dotNumber || "—"}</span></div>
-                    <div className="text-gray-400">MC: <span className="font-medium text-white">{c.mcMxffNumber || "—"}</span></div>
-                    <div className="text-gray-400">Units: <span className="font-medium text-white">{c.powerUnits || "—"}</span></div>
-                    <div className="text-gray-400">Drivers: <span className="font-medium text-white">{c.drivers || "—"}</span></div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    <div className="text-gray-400">DOT: <span className="font-medium text-white">{c.dotNumber || "\u2014"}</span></div>
+                    <div className="text-gray-400">MC: <span className="font-medium text-white">{c.mcMxffNumber || "\u2014"}</span></div>
+                    <div className="text-gray-400">Units: <span className="font-medium text-white">{c.powerUnits || "\u2014"}</span></div>
+                    <div className="text-gray-400">Drivers: <span className="font-medium text-white">{c.drivers || "\u2014"}</span></div>
+                    {authStatus && <div className="text-gray-400">Authority: <span className="font-medium text-white">{authStatus}</span></div>}
                   </div>
 
                   {/* Addresses */}
                   <div className="space-y-2">
                     <div>
                       <p className="text-xs text-gray-400">Physical Address</p>
-                      <p className="text-sm text-white">{formatAddress(c, "phy")}</p>
+                      <p className="text-sm text-white">{formatAddress(c, "phyStreet")}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-400">Mailing Address</p>
-                      <p className="text-sm text-white">{formatAddress(c, "mail")}</p>
+                      <p className="text-sm text-white">{formatAddress(c, "mailStreet")}</p>
                     </div>
                   </div>
 
                   {/* Contact */}
-                  <div className="flex gap-4 text-sm">
-                    <div className="text-gray-400">Phone: <span className="text-white">{c.phone || "—"}</span></div>
-                    <div className="text-gray-400">Fax: <span className="text-white">{c.fax || "—"}</span></div>
+                  <div className="text-sm">
+                    <span className="text-gray-400">Phone: </span><span className="text-white">{c.phone || "\u2014"}</span>
                   </div>
 
                   {/* All other fields */}
@@ -214,7 +194,7 @@ export default function CarriersPage() {
                     <p className="text-xs text-gray-400 mb-2">Additional Details</p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                       {Object.entries(c).map(([key, value]) => {
-                        if (!value || HIDDEN_FIELDS.has(key) || ADDRESS_FIELDS.has(key) || ["legalName", "dbaName", "dotNumber", "mcMxffNumber", "powerUnits", "drivers", "phone", "fax", "oosStatus", "safetyRating"].includes(key)) return null;
+                        if (!value || HIDDEN_FIELDS.has(key) || ADDRESS_FIELDS.has(key) || HEADER_FIELDS.has(key)) return null;
                         return (
                           <div key={key} className="text-xs">
                             <span className="text-gray-400">{LABEL_MAP[key] || key}: </span>
