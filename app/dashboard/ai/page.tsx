@@ -125,6 +125,25 @@ export default function AIPage() {
     | null
   >(null);
 
+  // Track companies already sent emails to, so AI skips them
+  const [sentCompanies, setSentCompanies] = useState<Array<{ company: string; email: string; website: string | null }>>([]);
+
+  // Fetch sent companies on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/gmail/sent-companies");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.sentCompanies)) {
+            setSentCompanies(data.sentCompanies);
+          }
+        }
+      } catch {
+        /* non-critical */ }
+    })();
+  }, []);
+
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const uniqueDrafts = useMemo(() => {
@@ -267,11 +286,19 @@ export default function AIPage() {
     setLoading(true);
 
     try {
-      const existingLeads = uniqueDrafts.map((draft) => ({
-        company: draft.company ?? draft.to,
-        website: draft.website ?? "",
-        email: draft.to,
-      }));
+      // Combine current drafts + previously sent companies so AI doesn't repeat them
+      const existingLeads = [
+        ...uniqueDrafts.map((draft) => ({
+          company: draft.company ?? draft.to,
+          website: draft.website ?? "",
+          email: draft.to,
+        })),
+        ...sentCompanies.map((sc) => ({
+          company: sc.company,
+          website: sc.website ?? "",
+          email: sc.email,
+        })),
+      ];
 
       const aiRes = await fetch("/api/ai_v3", {
         method: "POST",
