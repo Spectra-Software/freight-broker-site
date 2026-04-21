@@ -77,6 +77,7 @@ export default function InboxPage() {
   const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     setActiveTab(getTabFromSearch(searchParams.get("tab")));
@@ -96,6 +97,33 @@ export default function InboxPage() {
         return [];
     }
   }, [activeTab, inboxEmails, sentEmails, approvalEmails, followUpEmails]);
+
+  const refreshTab = async (tab?: TabKey) => {
+    const targets = tab ? [tab] : (["inbox", "sent", "approval", "followUp"] as TabKey[]);
+    setRefreshing(true);
+
+    const endpointMap: Record<TabKey, string> = {
+      inbox: "/api/gmail/inbox",
+      sent: "/api/gmail/sent",
+      approval: "/api/gmail/for-approval",
+      followUp: "/api/gmail/follow-up",
+    };
+    const setterMap: Record<TabKey, React.Dispatch<React.SetStateAction<EmailItem[]>>> = {
+      inbox: setInboxEmails,
+      sent: setSentEmails,
+      approval: setApprovalEmails,
+      followUp: setFollowUpEmails,
+    };
+
+    await Promise.all(
+      targets.map(async (t) => {
+        const items = await fetchMessages(endpointMap[t]);
+        setterMap[t](items);
+      })
+    );
+
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -239,32 +267,44 @@ export default function InboxPage() {
           </p>
         </div>
 
-        {showApprovalActions && (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {(activeTab === "inbox" || activeTab === "sent") && (
             <button
-              onClick={toggleSelectAllApproval}
-              className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+              onClick={() => refreshTab(activeTab)}
+              disabled={refreshing}
+              className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {approvalAllSelected ? "Unselect All" : "Select All"}
+              {refreshing ? "Refreshing..." : "Refresh"}
             </button>
+          )}
 
-            <button
-              onClick={handleSendSelected}
-              disabled={!approvalSelectedCount}
-              className="rounded-xl bg-blue-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Send Selected ({approvalSelectedCount})
-            </button>
+          {showApprovalActions && (
+            <>
+              <button
+                onClick={toggleSelectAllApproval}
+                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+              >
+                {approvalAllSelected ? "Unselect All" : "Select All"}
+              </button>
 
-            <button
-              onClick={handleDeleteSelected}
-              disabled={!approvalSelectedCount}
-              className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Delete Selected ({approvalSelectedCount})
-            </button>
-          </div>
-        )}
+              <button
+                onClick={handleSendSelected}
+                disabled={!approvalSelectedCount}
+                className="rounded-xl bg-blue-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Send Selected ({approvalSelectedCount})
+              </button>
+
+              <button
+                onClick={handleDeleteSelected}
+                disabled={!approvalSelectedCount}
+                className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Delete Selected ({approvalSelectedCount})
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
