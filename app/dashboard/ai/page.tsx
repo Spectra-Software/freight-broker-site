@@ -559,7 +559,7 @@ export default function AIPage() {
             />
 
             <div className="flex items-center gap-2">
-              <label className="inline-block cursor-pointer rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white hover:bg-white/10">
+              <label className="inline-block cursor-pointer rounded-2xl bg-purple-500 px-5 py-3 text-white hover:bg-purple-600">
                 <input
                   type="file"
                   accept="application/pdf"
