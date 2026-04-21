@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
 
@@ -143,6 +144,24 @@ export async function POST(req: Request) {
 
     if (!message) return NextResponse.json({ error: "No message provided" }, { status: 400 });
 
+    // Fetch user's company name for subject lines
+    const session = await getServerSession(authOptions);
+    let userCompany: string | null = null;
+    if (session?.user?.email) {
+      const dbUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { company: true },
+      });
+      userCompany = dbUser?.company ?? null;
+    }
+
+    if (!userCompany) {
+      return NextResponse.json({
+        reply: "⚠️ You need to set your company name in Account Settings before I can generate outreach drafts. Please go to Settings → Profile → Company and add your company name, then try again.",
+        leads: [],
+      });
+    }
+
     const existingText = existingLeads.length
       ? existingLeads
           .slice(0, 50)
@@ -158,7 +177,7 @@ export async function POST(req: Request) {
           .join(", ")
       : "None";
 
-    const draftBodyRule = `- draft must include subject and body.\n- Subject line rules (critical): Write subject lines that sound like a freight broker reaching out to a carrier about available capacity or backup carrier options. Examples: \"Available lanes — looking for reliable carriers\", \"Freight capacity partnership opportunity\", \"Backup carrier options for [lane/region]\", \"Looking for carriers — [region/lane]\", \"Lane availability inquiry\", \"Carrier capacity — [company name]\". Keep subjects 4-8 words, professional, and specific to freight/carrier capacity. Do NOT use generic sales subject lines like \"Quick question\" or \"Inquiry\" or \"Introduction\".\n- Body: greeting, 1-2 short paragraphs about carrier capacity/backup options, clear call to action, and end with \"Best regards\" on its own line. Do NOT include a signature block (name, title, phone, email) — the user's Gmail signature is appended automatically when the email is sent. Use paragraph breaks (\\n\\n).`;
+    const draftBodyRule = `- draft must include subject and body.\n- Subject line rules (critical): Every subject line MUST include the user's company name \"${userCompany}\". Use one of these two formats:\n  1. \"Introduction to ${userCompany} Services\"\n  2. \"Backup Carrier Options - ${userCompany}\"\n  Choose the format that best fits the email content. If the email introduces the brokerage, use format 1. If the email is about backup carrier capacity, use format 2. Always include \"${userCompany}\" in the subject line. Do NOT use any other subject line format.\n- Body: greeting, 1-2 short paragraphs about carrier capacity/backup options, clear call to action, and end with \"Best regards\" on its own line. Do NOT include a signature block (name, title, phone, email) — the user's Gmail signature is appended automatically when the email is sent. Use paragraph breaks (\\n\\n).`;
 
     const personalizationRule = `\\n\\nPERSONALIZATION RULES (critical — every draft must be unique):\\n- Each draft MUST reference the specific company name and mention something relevant to their business or industry. Do NOT copy the same email body across leads.\\n- Vary the greeting, opening line, value proposition, and call-to-action for each lead.\\n- If you found info about the company (industry, services, location), reference it naturally in the email.\\n- Tone: professional, warm, concise. Avoid generic phrases like "I hope this message finds you well" for every email — mix up openings.`;
 
