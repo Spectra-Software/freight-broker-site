@@ -4,93 +4,105 @@ import { NextResponse } from "next/server";
 // Accepts ?dot=XXX or ?mc=XXX query params.
 // Parses the SAFER Company Snapshot HTML page.
 
+function stripHtml(s: string): string {
+  return s.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function extractField(html: string, label: string): string {
-  // SAFER pages use pattern: <Label> ...value...
-  // Try matching label followed by content in the next cell/td
-  const regex = new RegExp(`${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*</td>\\s*<td[^>]*>\\s*([\\s\\S]*?)\\s*</td>`, "i");
+  // SAFER HTML pattern: <TH ... class="querylabelbkg" ...>Label</TH> ... <TD class="queryfield" ...>value</TD>
+  const regex = new RegExp(
+    `<TH[^>]*class="querylabelbkg"[^>]*>[\\s\\S]*?${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?</TH>\\s*<TD[^>]*class="queryfield"[^>]*>([\\s\\S]*?)</TD>`,
+    "i"
+  );
   const m = html.match(regex);
-  if (m) return m[1].replace(/<[^>]*>/g, "").trim();
-  // Fallback: label followed by colon or bold text
-  const regex2 = new RegExp(`${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[:\\s]*([\\w\\s,.-]+)`, "i");
-  const m2 = html.match(regex2);
-  return m2 ? m2[1].trim() : "";
+  return m ? stripHtml(m[1]) : "";
+}
+
+function extractFieldWide(html: string, label: string): string {
+  // Same but allows colspan and other attributes on the TD
+  const regex = new RegExp(
+    `<TH[^>]*class="querylabelbkg"[^>]*>[\\s\\S]*?${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?</TH>\\s*<TD[^>]*>([\\s\\S]*?)</TD>`,
+    "i"
+  );
+  const m = html.match(regex);
+  return m ? stripHtml(m[1]) : "";
+}
+
+function extractCheckedItems(html: string, sectionLabel: string): string[] {
+  // Find a section like "Operation Classification" then find rows with X in the first cell
+  const sectionRegex = new RegExp(
+    `${sectionLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?<TABLE[^>]*>[\\s\\S]*?</TABLE>`,
+    "i"
+  );
+  const sectionMatch = html.match(sectionRegex);
+  if (!sectionMatch) return [];
+
+  const section = sectionMatch[0];
+  const items: string[] = [];
+  // Match <TD class="queryfield" ...>X</TD> followed by label text
+  const rowRegex = /<TD[^>]*class="queryfield"[^>]*>\s*X\s*<\/TD>\s*<TD[^>]*>([\s\S]*?)<\/TD>/gi;
+  let m;
+  while ((m = rowRegex.exec(section)) !== null) {
+    items.push(stripHtml(m[1]));
+  }
+  return items;
+}
+
+function extractMxNumber(html: string): string {
+  // MC/MX/FF Number is in a special format: <TD>MC-XXXXX</TD>
+  const m = html.match(/<TD[^>]*class="queryfield"[^>]*>\s*(MC-?\d+)\s*&nbsp;/i);
+  return m ? m[1] : "";
+}
+
+function extractOperatingAuthority(html: string): string {
+  // Operating Authority Status has its own section with bold text
+  const m = html.match(/Operating Authority Status:[\s\S]*?<TD[^>]*class="queryfield"[^>]*>([\s\S]*?)<\/TD>/i);
+  if (!m) return "";
+  // Extract the main status (AUTHORIZED FOR ..., NOT AUTHORIZED, etc.)
+  const statusMatch = m[1].match(/<b>\s*([\s\S]*?)\s*<\/b>/i);
+  return statusMatch ? stripHtml(statusMatch[1]) : stripHtml(m[1]).split("*")[0].trim();
 }
 
 function parseSaferHtml(html: string) {
-  // Extract key fields from the SAFER Company Snapshot HTML
   const carrier: Record<string, string> = {};
 
-  // USDOT Number
-  const dotMatch = html.match(/USDOT\s*Number[:\s]*<\/?\w*[^>]*>\s*(\d+)/i) ?? html.match(/USDOT\s*#\s*[:\s]*(\d+)/i);
-  if (dotMatch) carrier.dotNumber = dotMatch[1];
+  carrier.entityType = extractField(html, "Entity Type");
+  carrier.dotStatus = extractField(html, "USDOT Status");
+  carrier.oosDate = extractFieldWide(html, "Out of Service Date");
+  carrier.dotNumber = extractField(html, "USDOT Number");
+  carrier.mcs150FormDate = extractField(html, "MCS-150 Form Date");
+  carrier.operatingAuthorityStatus = extractOperatingAuthority(html);
+  carrier.mcMxffNumber = extractMxNumber(html);
+  carrier.legalName = extractFieldWide(html, "Legal Name");
+  carrier.dbaName = extractFieldWide(html, "DBA Name");
+  carrier.phyStreet = extractFieldWide(html, "Physical Address");
+  carrier.phone = extractFieldWide(html, "Phone");
+  carrier.mailStreet = extractFieldWide(html, "Mailing Address");
+  carrier.powerUnits = extractField(html, "Power Units");
+  carrier.drivers = extractField(html, "Drivers");
 
-  // MC/MX Number
-  const mcMatch = html.match(/MC[-/MX\s]*Number[^<]*?[:\s]*(MC-?\d+)/i) ?? html.match(/\b(MC-\d+)\b/i);
-  if (mcMatch) carrier.mcMxffNumber = mcMatch[1];
+  // Operation Classification - extract checked items
+  const opClass = extractCheckedItems(html, "Operation Classification");
+  if (opClass.length) carrier.operationClassification = opClass.join(", ");
 
-  // Legal Name
-  const legalMatch = html.match(/Legal\s*Name[:\s]*<\/?\w*[^>]*>\s*([A-Za-z0-9\s,.&'-]+)/i);
-  if (legalMatch) carrier.legalName = legalMatch[1].trim();
+  // Carrier Operation - extract checked items
+  const carrierOp = extractCheckedItems(html, "Carrier Operation");
+  if (carrierOp.length) carrier.carrierOperation = carrierOp.join(", ");
 
-  // DBA Name
-  const dbaMatch = html.match(/DBA\s*Name[:\s]*<\/?\w*[^>]*>\s*([A-Za-z0-9\s,.&'-]+)/i);
-  if (dbaMatch) carrier.dbaName = dbaMatch[1].trim();
-
-  // Physical Address
-  const phyMatch = html.match(/Physical\s*Address[:\s]*<\/?\w*[^>]*>\s*([\s\S]*?)(?:<br\s*\/?>\s*Phone|Mailing\s*Address)/i);
-  if (phyMatch) carrier.phyStreet = phyMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-
-  // Mailing Address
-  const mailMatch = html.match(/Mailing\s*Address[:\s]*<\/?\w*[^>]*>\s*([\s\S]*?)(?:<br\s*\/?>\s*DUNS|Power\s*Units)/i);
-  if (mailMatch) carrier.mailStreet = mailMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-
-  // Phone
-  const phoneMatch = html.match(/Phone[:\s]*<\/?\w*[^>]*>\s*([\d()-\s]+)/i);
-  if (phoneMatch) carrier.phone = phoneMatch[1].trim();
-
-  // Power Units
-  const puMatch = html.match(/Power\s*Units[:\s]*<\/?\w*[^>]*>\s*(\d+)/i);
-  if (puMatch) carrier.powerUnits = puMatch[1];
-
-  // Drivers
-  const drMatch = html.match(/Drivers[:\s]*<\/?\w*[^>]*>\s*(\d+)/i);
-  if (drMatch) carrier.drivers = drMatch[1];
-
-  // USDOT Status
-  const statusMatch = html.match(/USDOT\s*Status[:\s]*<\/?\w*[^>]*>\s*(\w+)/i);
-  if (statusMatch) carrier.dotStatus = statusMatch[1];
-
-  // Operating Authority Status
-  const oaMatch = html.match(/Operating\s*Authority\s*Status[:\s]*<\/?\w*[^>]*>\s*([A-Z\s{}]+)/i);
-  if (oaMatch) carrier.operatingAuthorityStatus = oaMatch[1].trim();
-
-  // Out of Service Date
-  const oosMatch = html.match(/Out\s*of\s*Service\s*Date[:\s]*<\/?\w*[^>]*>\s*([\w\s]*)/i);
-  if (oosMatch) carrier.oosDate = oosMatch[1].trim();
-
-  // MCS-150 Form Date
-  const mcsMatch = html.match(/MCS-150\s*Form\s*Date[:\s]*<\/?\w*[^>]*>\s*([\d/]+)/i);
-  if (mcsMatch) carrier.mcs150FormDate = mcsMatch[1].trim();
+  // Cargo Carried - extract checked items
+  const cargo = extractCheckedItems(html, "Cargo Carried");
+  if (cargo.length) carrier.cargoCarried = cargo.join(", ");
 
   // Safety Rating
-  const ratingMatch = html.match(/Rating[:\s]*<\/?\w*[^>]*>\s*(\w+)/i);
-  if (ratingMatch && ratingMatch[1] !== "None") carrier.safetyRating = ratingMatch[1];
+  const rating = extractFieldWide(html, "Rating");
+  if (rating && rating !== "None") carrier.safetyRating = rating;
 
-  // Operation Classification
-  const opClassMatch = html.match(/Operation\s*Classification[:\s]*<\/?\w*[^>]*>[\s\S]*?<\/td>/i);
-  if (opClassMatch) carrier.operationClassification = opClassMatch[0].replace(/<[^>]*>/g, "").replace(/Operation\s*Classification/i, "").trim();
-
-  // Carrier Operation
-  const carOpMatch = html.match(/Carrier\s*Operation[:\s]*<\/?\w*[^>]*>[\s\S]*?<\/td>/i);
-  if (carOpMatch) carrier.carrierOperation = carOpMatch[0].replace(/<[^>]*>/g, "").replace(/Carrier\s*Operation/i, "").trim();
-
-  // Cargo Carried
-  const cargoMatch = html.match(/Cargo\s*Carried[:\s]*<\/?\w*[^>]*>[\s\S]*?<\/td>/i);
-  if (cargoMatch) carrier.cargoCarried = cargoMatch[0].replace(/<[^>]*>/g, "").replace(/Cargo\s*Carried/i, "").trim();
-
-  // Entity Type
-  const entityMatch = html.match(/Entity\s*Type[:\s]*<\/?\w*[^>]*>\s*(\w+)/i);
-  if (entityMatch) carrier.entityType = entityMatch[1];
+  // Clean up "None" values
+  for (const key of Object.keys(carrier)) {
+    if (carrier[key] === "None" || carrier[key] === "--" || carrier[key] === "&nbsp;") {
+      delete carrier[key];
+    }
+  }
 
   return carrier;
 }
