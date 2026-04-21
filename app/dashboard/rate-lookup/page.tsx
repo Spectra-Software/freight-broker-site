@@ -125,8 +125,10 @@ export default function QuoteALanePage() {
         } catch (e) {
           polylineRef.current = L.polyline(latlngs, { color: 'blue' }).addTo(leafletMapRef.current);
         }
+        if (polylineRef.current) {
+          leafletMapRef.current.fitBounds(polylineRef.current.getBounds(), { padding: [40, 40] });
+        }
       })();
-      leafletMapRef.current.fitBounds(polylineRef.current.getBounds(), { padding: [40, 40] });
     } else if (originCoord || destCoord) {
       const loc = originCoord || destCoord;
       leafletMapRef.current.setView([loc!.lat, loc!.lng], 8);
