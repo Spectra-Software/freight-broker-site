@@ -13,6 +13,7 @@ model User {
   email        String        @unique
   image        String?
   role         Role          @default(USER)
+  status       UserStatus    @default(ACTIVE)
   plan         PlanTier      @default(BASIC)
   createdAt    DateTime      @default(now())
   company      String?
@@ -105,6 +106,12 @@ model Attachment {
 enum Role {
   USER
   ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
 }
 
 enum AppStatus {
