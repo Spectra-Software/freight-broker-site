@@ -85,15 +85,15 @@ export default function DashboardPage() {
           className="rounded-3xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-xl"
         >
           <p className="text-sm text-gray-400">Rate tools</p>
-          <h2 className="mt-3 text-2xl font-bold tracking-tight">Rate Lookup</h2>
-          <p className="mt-2 text-sm text-gray-300">Find mileage and estimated rates between origin and destination.</p>
+          <h2 className="mt-3 text-2xl font-bold tracking-tight">Quote A Lane</h2>
+          <p className="mt-2 text-sm text-gray-300">Get a quick lane quote with mileage and estimated rates between origin and destination.</p>
 
           <div className="mt-5 inline-flex gap-2">
             <button
               onClick={() => router.push("/dashboard/rate-lookup")}
               className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
             >
-              Open Rate Lookup
+              Quote A Lane
             </button>
           </div>
         </motion.div>

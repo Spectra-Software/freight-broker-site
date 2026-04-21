@@ -13,9 +13,9 @@ export async function GET() {
     }
 
     // EIA series for U.S. on-highway diesel weekly average (dollars per gallon)
-    // series_id may need to be adjusted based on availability
     const seriesId = "PET.EMM_EPM0_PTE_NUS_DPG.W";
-    const url = `https://api.eia.gov/series/?api_key=${encodeURIComponent(apiKey)}&series_id=${encodeURIComponent(seriesId)}`;
+    // Use v2 backward-compatibility endpoint (v1 was retired March 2023)
+    const url = `https://api.eia.gov/v2/seriesid/${encodeURIComponent(seriesId)}?api_key=${encodeURIComponent(apiKey)}`;
 
     const res = await fetch(url, { next: { revalidate: 60 * 60 } });
     if (!res.ok) {
@@ -25,14 +25,15 @@ export async function GET() {
     }
 
     const data = await res.json();
-    const series = data?.series && Array.isArray(data.series) ? data.series[0] : null;
-    const latest = series?.data && Array.isArray(series.data) ? series.data[0] : null; // [date, value]
+    // v2 response format: { response: { data: [{ period, value, ... }] } }
+    const rows = data?.response?.data && Array.isArray(data.response.data) ? data.response.data : [];
+    const latest = rows[0] ?? null;
 
-    if (!latest || typeof latest[1] !== "number") {
+    if (!latest || (typeof latest.value !== "number" && typeof latest.value !== "string")) {
       return NextResponse.json({ price: 3.5, currency: "USD", source: "eia", error: "no data" });
     }
 
-    const price = Number(latest[1]);
+    const price = Number(latest.value);
 
     return NextResponse.json({ price, currency: "USD", source: "eia", seriesId });
   } catch (err) {

@@ -12,7 +12,7 @@ const trailerRates: Record<string, number> = {
   "open_deck": 2.3,
 };
 
-export default function RateLookupPage() {
+export default function QuoteALanePage() {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [originCoord, setOriginCoord] = useState<LatLng | null>(null);
@@ -218,8 +218,8 @@ export default function RateLookupPage() {
   return (
     <div className="h-[calc(100vh-6rem)] flex gap-4">
       <div className="w-full max-w-md space-y-4 rounded-3xl border border-white/10 bg-white/5 p-4">
-        <h1 className="text-xl font-bold">Rate Lookup</h1>
-        <p className="text-sm text-gray-400">Find route mileage and estimate a rate between origin and destination.</p>
+        <h1 className="text-xl font-bold">Quote A Lane</h1>
+        <p className="text-sm text-gray-400">Get a quick lane quote with mileage and estimated rate between origin and destination.</p>
 
         <div>
           <label className="text-xs text-gray-400">Origin (city, state or zip)</label>
@@ -254,7 +254,7 @@ export default function RateLookupPage() {
 
         <div>
           <button onClick={handleLookup} disabled={loading} className="mt-2 w-full rounded-xl bg-blue-600 px-4 py-2 text-white">
-            {loading ? "Looking up…" : "Lookup rate"}
+            {loading ? "Quoting…" : "Quote Lane"}
           </button>
         </div>
 
