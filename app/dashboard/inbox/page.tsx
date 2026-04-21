@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 
@@ -55,6 +55,40 @@ function formatDate(value?: string) {
   return d.toLocaleString();
 }
 
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "Ready to send";
+  const days = Math.floor(ms / 86400000);
+  const hours = Math.floor((ms % 86400000) / 3600000);
+  const minutes = Math.floor((ms % 3600000) / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function CountdownBadge({ scheduledAt }: { scheduledAt: string | null | undefined }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!scheduledAt) return null;
+  const target = new Date(scheduledAt).getTime();
+  const remaining = target - now;
+  const ready = remaining <= 0;
+
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+      ready ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"
+    }`}>
+      {formatCountdown(remaining)}
+    </span>
+  );
+}
+
 function getTabFromSearch(value: string | null): TabKey {
   if (value === "sent") return "sent";
   if (value === "approval") return "approval";
@@ -76,6 +110,7 @@ export default function InboxPage() {
 
   const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
+  const [selectedFollowUpIds, setSelectedFollowUpIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -106,7 +141,7 @@ export default function InboxPage() {
       inbox: "/api/gmail/inbox",
       sent: "/api/gmail/sent",
       approval: "/api/gmail/for-approval",
-      followUp: "/api/gmail/follow-up",
+      followUp: "/api/gmail/follow-ups",
     };
     const setterMap: Record<TabKey, React.Dispatch<React.SetStateAction<EmailItem[]>>> = {
       inbox: setInboxEmails,
@@ -133,7 +168,7 @@ export default function InboxPage() {
         fetchMessages("/api/gmail/inbox"),
         fetchMessages("/api/gmail/sent"),
         fetchMessages("/api/gmail/for-approval"),
-        fetchMessages("/api/gmail/follow-up"),
+        fetchMessages("/api/gmail/follow-ups"),
       ]);
 
       setInboxEmails(inbox);
@@ -159,13 +194,22 @@ export default function InboxPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    // Reset selection when user switches tabs, but do NOT reset whenever the items list updates
-    // (that caused selection to flash away when the approval list refreshed periodically).
+    if (activeTab !== "followUp") return;
+
+    const interval = setInterval(async () => {
+      const followUp = await fetchMessages("/api/gmail/follow-ups");
+      setFollowUpEmails(followUp);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
+  useEffect(() => {
     setSelectedApprovalIds([]);
+    setSelectedFollowUpIds([]);
     setSelectedEmail(activeItems[0] || null);
   }, [activeTab]);
 
-  // Delete helpers
   const handleDeleteSelected = async () => {
     if (!selectedApprovalIds.length) return;
 
@@ -180,12 +224,8 @@ export default function InboxPage() {
       if (!res.ok) throw new Error(data.error || "Failed to delete drafts");
 
       setApprovalEmails((prev) => prev.filter((e) => !selectedApprovalIds.includes(e.id)));
-      // clear selection and selected email if it was deleted
-      const wasSelectedDeleted = selectedEmail && selectedApprovalIds.includes(selectedEmail.id);
       setSelectedApprovalIds([]);
-      if (wasSelectedDeleted) {
-        setSelectedEmail(null);
-      }
+      setSelectedEmail(null);
     } catch (err) {
       console.error(err);
     }
@@ -253,7 +293,72 @@ export default function InboxPage() {
     }
   };
 
+  const followUpSelectedCount = selectedFollowUpIds.length;
+  const followUpAllSelected = followUpEmails.length > 0 && selectedFollowUpIds.length === followUpEmails.length;
+
+  const isFollowUpReady = (email: EmailItem) => {
+    if (!email.scheduledAt) return false;
+    return new Date(email.scheduledAt).getTime() <= Date.now();
+  };
+
+  const toggleFollowUpItem = (id: string) => {
+    setSelectedFollowUpIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllFollowUps = () => {
+    if (followUpAllSelected) {
+      setSelectedFollowUpIds([]);
+      return;
+    }
+    setSelectedFollowUpIds(followUpEmails.filter(isFollowUpReady).map((x) => x.id));
+  };
+
+  const handleSendFollowUps = useCallback(async () => {
+    if (!selectedFollowUpIds.length) return;
+
+    try {
+      const res = await fetch("/api/gmail/send-follow-up", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedFollowUpIds }),
+      });
+
+      const data: { error?: string } = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Failed to send follow-ups");
+
+      setFollowUpEmails((prev) => prev.filter((e) => !selectedFollowUpIds.includes(e.id)));
+      setSelectedFollowUpIds([]);
+      setSelectedEmail(null);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [selectedFollowUpIds]);
+
+  const handleDeleteFollowUp = async (id?: string) => {
+    if (!id) return;
+    try {
+      const res = await fetch("/api/gmail/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id] }),
+      });
+
+      const data: { error?: string } = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete follow-up");
+
+      setFollowUpEmails((prev) => prev.filter((e) => e.id !== id));
+      if (selectedEmail?.id === id) setSelectedEmail(null);
+      setSelectedFollowUpIds((prev) => prev.filter((x) => x !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const showApprovalActions = activeTab === "approval";
+  const showFollowUpActions = activeTab === "followUp";
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col space-y-4">
@@ -301,6 +406,25 @@ export default function InboxPage() {
                 className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Delete Selected ({approvalSelectedCount})
+              </button>
+            </>
+          )}
+
+          {showFollowUpActions && (
+            <>
+              <button
+                onClick={toggleSelectAllFollowUps}
+                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+              >
+                {followUpAllSelected ? "Unselect All" : "Select Ready"}
+              </button>
+
+              <button
+                onClick={handleSendFollowUps}
+                disabled={!followUpSelectedCount}
+                className="rounded-xl bg-emerald-500 px-4 py-2 text-sm text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Send Follow-Up ({followUpSelectedCount})
               </button>
             </>
           )}
@@ -380,18 +504,20 @@ export default function InboxPage() {
 
                 <p className="mt-1 truncate text-xs text-gray-400">{email.snippet}</p>
 
-                {activeTab === "approval" && email.attachments?.length ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {email.attachments.map((file: Attachment) => (
-                      <span
-                        key={file.name}
-                        className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] text-gray-200"
-                      >
-                        {file.name}
-                      </span>
-                    ))}
+                {activeTab === "followUp" && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <CountdownBadge scheduledAt={email.scheduledAt} />
+                    {isFollowUpReady(email) && (
+                      <input
+                        type="checkbox"
+                        checked={selectedFollowUpIds.includes(email.id)}
+                        onChange={() => toggleFollowUpItem(email.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 rounded border-white/20 bg-transparent"
+                      />
+                    )}
                   </div>
-                ) : null}
+                )}
               </div>
             );
           })}
@@ -457,8 +583,11 @@ export default function InboxPage() {
                 ) : null}
 
                 {activeTab === "followUp" && selectedEmail.scheduledAt ? (
-                  <div className="mt-6 text-xs text-gray-400">
-                    Scheduled follow-up date: {formatDate(selectedEmail.scheduledAt)}
+                  <div className="mt-6 flex items-center gap-3">
+                    <CountdownBadge scheduledAt={selectedEmail.scheduledAt} />
+                    <span className="text-xs text-gray-400">
+                      Scheduled: {formatDate(selectedEmail.scheduledAt)}
+                    </span>
                   </div>
                 ) : null}
               </div>
@@ -490,6 +619,34 @@ export default function InboxPage() {
                     className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white hover:bg-rose-600"
                   >
                     Delete Draft
+                  </button>
+                )}
+
+                {activeTab === "followUp" && isFollowUpReady(selectedEmail) && (
+                  <button
+                    onClick={handleSendFollowUps}
+                    disabled={!selectedFollowUpIds.includes(selectedEmail.id)}
+                    className="rounded-xl bg-emerald-500 px-4 py-2 text-sm text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {selectedFollowUpIds.includes(selectedEmail.id) ? "Send Follow-Up" : "Select to Send"}
+                  </button>
+                )}
+
+                {activeTab === "followUp" && !isFollowUpReady(selectedEmail) && (
+                  <button
+                    disabled
+                    className="rounded-xl bg-white/10 px-4 py-2 text-sm text-gray-500 cursor-not-allowed"
+                  >
+                    Wait to Send
+                  </button>
+                )}
+
+                {activeTab === "followUp" && (
+                  <button
+                    onClick={() => handleDeleteFollowUp(selectedEmail?.id)}
+                    className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white hover:bg-rose-600"
+                  >
+                    Delete
                   </button>
                 )}
               </div>

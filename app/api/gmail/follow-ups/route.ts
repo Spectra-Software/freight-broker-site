@@ -1,100 +1,126 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/google/gmail";
 
-const CRON_SECRET = process.env.CRON_SECRET;
-
-type DbAttachment = {
+type FollowUpAttachmentRow = {
+  id: string;
   name: string;
   url: string | null;
   mimeType: string | null;
 };
 
-type SafeAttachment = {
-  name: string;
-  url?: string;
-  mimeType?: string;
+type FollowUpRow = {
+  id: string;
+  to: string;
+  from: string | null;
+  subject: string;
+  body: string;
+  snippet: string | null;
+  company: string | null;
+  website: string | null;
+  location: string | null;
+  scheduledAt: Date | null;
+  sentAt: Date | null;
+  createdAt: Date;
+  parentId: string | null;
+  attachments: FollowUpAttachmentRow[];
 };
 
-export async function GET(req: Request) {
-  try {
-    const authHeader = req.headers.get("authorization");
+type FollowUpEmail = {
+  id: string;
+  to: string;
+  from: string | null;
+  subject: string;
+  body: string;
+  snippet: string | null;
+  company: string | null;
+  website: string | null;
+  location: string | null;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  time: string;
+  status: "FOLLOW_UP";
+  parentId: string | null;
+  attachments: {
+    id: string;
+    name: string;
+    url: string | null;
+    mimeType: string | null;
+  }[];
+};
 
-    if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const followUps = await prisma.email.findMany({
-      where: {
-        status: "FOLLOW_UP",
-        scheduledAt: { lte: new Date() },
-      },
-      include: {
-        user: true,
-        attachments: true,
-      },
-      take: 20,
-    });
+    let userId: string | undefined = (session.user as { id?: string }).id;
 
-    const results: Array<{ id: string; status: string }> = [];
+    if (!userId) {
+      const dbUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { id: true },
+      });
 
-    for (const email of followUps) {
-      try {
-        const accessToken = (email.user as any)?.accessToken as
-          | string
-          | undefined;
-
-        if (!accessToken) {
-          results.push({
-            id: email.id,
-            status: "skipped_no_token",
-          });
-          continue;
-        }
-
-        const attachments: SafeAttachment[] = (email.attachments ?? []).map(
-          (a: DbAttachment) => ({
-            name: a.name,
-            url: a.url ?? undefined,
-            mimeType: a.mimeType ?? undefined,
-          })
-        );
-
-        await sendEmail({
-          accessToken,
-          to: email.to,
-          subject: email.subject,
-          body: email.body,
-          attachments,
-        });
-
-        await prisma.email.update({
-          where: { id: email.id },
-          data: {
-            status: "SENT",
-            sentAt: new Date(),
-          },
-        });
-
-        results.push({ id: email.id, status: "sent" });
-      } catch (err) {
-        console.error("FOLLOW-UP SEND ERROR:", err);
-
-        results.push({
-          id: email.id,
-          status: "failed",
-        });
+      if (!dbUser?.id) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
+
+      userId = dbUser.id;
     }
 
-    return NextResponse.json({
-      success: true,
-      processed: results.length,
-      results,
+    if (!userId) {
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    }
+
+    const followUps: FollowUpRow[] = await prisma.email.findMany({
+      where: {
+        userId,
+        status: "FOLLOW_UP",
+      },
+      include: {
+        attachments: true,
+      },
+      orderBy: {
+        scheduledAt: "asc",
+      },
     });
-  } catch (error: any) {
+
+    const formatted: FollowUpEmail[] = followUps.map((email: FollowUpRow) => ({
+      id: email.id,
+      to: email.to,
+      from: email.company || email.to,
+      subject: email.subject,
+      body: email.body,
+      snippet: email.snippet,
+      company: email.company,
+      website: email.website,
+      location: email.location,
+      scheduledAt: email.scheduledAt ? email.scheduledAt.toISOString() : null,
+      sentAt: email.sentAt ? email.sentAt.toISOString() : null,
+      time: email.createdAt.toISOString(),
+      status: "FOLLOW_UP",
+      parentId: email.parentId,
+      attachments: (email.attachments ?? []).map((a: FollowUpAttachmentRow) => ({
+        id: a.id,
+        name: a.name,
+        url: a.url,
+        mimeType: a.mimeType,
+      })),
+    }));
+
+    return NextResponse.json({
+      messages: formatted,
+    });
+  } catch (error: unknown) {
+    console.error("FOLLOW-UPS LIST ERROR:", error);
+
     return NextResponse.json(
-      { error: error?.message || "Follow-up processing failed" },
+      { error: error instanceof Error ? error.message : "Failed to fetch follow-ups" },
       { status: 500 }
     );
   }

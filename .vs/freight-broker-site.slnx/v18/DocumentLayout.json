@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "C:\\Users\\theau\\freight-broker-site\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\theau\\freight-broker-site\\app\\dashboard\\ai\\page.tsx||{3B902123-F8A7-4915-9F01-361F908088D0}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:app\\dashboard\\ai\\page.tsx||{3B902123-F8A7-4915-9F01-361F908088D0}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\theau\\freight-broker-site\\lib\\uploads\\persistUpload.ts||{3B902123-F8A7-4915-9F01-361F908088D0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:lib\\uploads\\persistUpload.ts||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\theau\\freight-broker-site\\app\\dashboard\\ai\\page.tsx||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:app\\dashboard\\ai\\page.tsx||{3B902123-F8A7-4915-9F01-361F908088D0}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\theau\\freight-broker-site\\app\\api\\uploads\\files\\[filename]\\route.ts||{3B902123-F8A7-4915-9F01-361F908088D0}",
@@ -106,17 +106,17 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 8,
+          "SelectedChildIndex": 0,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "persistUpload.ts",
               "DocumentMoniker": "C:\\Users\\theau\\freight-broker-site\\lib\\uploads\\persistUpload.ts",
               "RelativeDocumentMoniker": "lib\\uploads\\persistUpload.ts",
               "ToolTip": "C:\\Users\\theau\\freight-broker-site\\lib\\uploads\\persistUpload.ts",
               "RelativeToolTip": "lib\\uploads\\persistUpload.ts",
-              "ViewState": "AgIAAAoAAAAAAAAAAAAkwDIAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABkAAAADAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
               "WhenOpened": "2026-04-21T00:01:10.59Z",
               "EditorCaption": ""
@@ -212,13 +212,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "page.tsx",
               "DocumentMoniker": "C:\\Users\\theau\\freight-broker-site\\app\\dashboard\\ai\\page.tsx",
               "RelativeDocumentMoniker": "app\\dashboard\\ai\\page.tsx",
               "ToolTip": "C:\\Users\\theau\\freight-broker-site\\app\\dashboard\\ai\\page.tsx",
               "RelativeToolTip": "app\\dashboard\\ai\\page.tsx",
-              "ViewState": "AgIAANQAAAAAAAAAAAAUwN4AAAAgAAAAAAAAAA==",
+              "ViewState": "AgIAAKACAAAAAAAAAAAkwMgCAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
               "WhenOpened": "2026-04-19T00:23:29.132Z",
               "EditorCaption": ""

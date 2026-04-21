@@ -26,16 +26,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
     }
 
-    const drafts = await prisma.email.findMany({
+    // Only allow sending follow-ups that have passed their scheduled date
+    const now = new Date();
+    const followUps = await prisma.email.findMany({
       where: {
         id: { in: ids },
-        status: "DRAFT",
+        status: "FOLLOW_UP",
+        scheduledAt: { lte: now },
       },
       include: { attachments: true },
     });
 
-    if (!drafts.length) {
-      return NextResponse.json({ error: "No drafts found" }, { status: 404 });
+    if (!followUps.length) {
+      return NextResponse.json({ error: "No follow-ups ready to send (must be past scheduled date)" }, { status: 400 });
     }
 
     // Load tokens for the user from DB
@@ -52,7 +55,6 @@ export async function POST(req: Request) {
     let accessToken = dbUser?.accessToken ?? null;
     try {
       if (dbUser?.tokenExpiry && dbUser.tokenExpiry.getTime() < Date.now() - 60000) {
-        // refresh token
         const res = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -68,8 +70,10 @@ export async function POST(req: Request) {
           const tok = await res.json();
           accessToken = tok.access_token;
           const expiry = tok.expires_in ? Date.now() + tok.expires_in * 1000 : Date.now() + 3600 * 1000;
-          // persist
-          await prisma.user.update({ where: { email: session.user.email }, data: { accessToken, tokenExpiry: new Date(expiry), refreshToken: tok.refresh_token ?? dbUser.refreshToken ?? null } });
+          await prisma.user.update({
+            where: { email: session.user.email },
+            data: { accessToken, tokenExpiry: new Date(expiry), refreshToken: tok.refresh_token ?? dbUser.refreshToken ?? null },
+          });
         }
       }
     } catch (e) {
@@ -78,55 +82,31 @@ export async function POST(req: Request) {
 
     const results: { id: string; ok: boolean; error?: string }[] = [];
 
-    for (const draft of drafts) {
+    for (const followUp of followUps) {
       try {
-        console.log("Sending email to:", draft.to);
-
-        // prepare attachments
-        const attachments = (draft.attachments || []).map((a: any) => ({ name: a.name, url: a.url ?? undefined, mimeType: a.mimeType ?? null }));
+        const attachments = (followUp.attachments || []).map((a: any) => ({
+          name: a.name,
+          url: a.url ?? undefined,
+          mimeType: a.mimeType ?? null,
+        }));
 
         await sendEmail({
           accessToken: accessToken!,
-          to: draft.to,
-          subject: draft.subject,
-          body: draft.body,
+          to: followUp.to,
+          subject: followUp.subject,
+          body: followUp.body,
           attachments,
         });
 
-        await prisma.email.update({ where: { id: draft.id }, data: { status: "SENT", sentAt: new Date() } });
-
-        // Auto-create a follow-up email scheduled 14 days from now
-        const followUpDate = new Date();
-        followUpDate.setDate(followUpDate.getDate() + 14);
-
-        const followUpSubject = draft.subject.startsWith("Re:")
-          ? draft.subject
-          : `Re: ${draft.subject}`;
-
-        const followUpBody = `Hi team,\n\nI wanted to follow up on my previous email below. We'd love the opportunity to work with you and support your logistics needs.\n\nPlease let me know if you have any questions or if there's a better contact I should reach out to.\n\nBest regards`;
-
-        await prisma.email.create({
-          data: {
-            userId: draft.userId,
-            type: "OUTBOUND",
-            status: "FOLLOW_UP",
-            to: draft.to,
-            from: draft.from,
-            subject: followUpSubject,
-            body: followUpBody,
-            snippet: followUpBody.slice(0, 180),
-            company: draft.company,
-            website: draft.website,
-            location: draft.location,
-            scheduledAt: followUpDate,
-            parentId: draft.id,
-          },
+        await prisma.email.update({
+          where: { id: followUp.id },
+          data: { status: "SENT", sentAt: new Date() },
         });
 
-        results.push({ id: draft.id, ok: true });
+        results.push({ id: followUp.id, ok: true });
       } catch (err: any) {
-        console.error("SEND EMAIL FAILED for", draft.id, err);
-        results.push({ id: draft.id, ok: false, error: err instanceof Error ? err.message : String(err) });
+        console.error("FOLLOW-UP SEND FAILED for", followUp.id, err);
+        results.push({ id: followUp.id, ok: false, error: err instanceof Error ? err.message : String(err) });
       }
     }
 
@@ -134,12 +114,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, sentCount, results });
   } catch (error: unknown) {
-    console.error("SEND ERROR:", error);
+    console.error("FOLLOW-UP SEND ERROR:", error);
 
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Failed to send emails",
-      },
+      { error: error instanceof Error ? error.message : "Failed to send follow-ups" },
       { status: 500 }
     );
   }

@@ -123,6 +123,8 @@ enum EmailStatus {
   DRAFT
   SENT
   FOLLOW_UP
+  SENDING
+  FAILED
 }
 
 enum EmailType {
