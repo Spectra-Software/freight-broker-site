@@ -124,7 +124,7 @@ Important rules:
 - The existing leads list includes both current drafts AND companies that have already been sent emails. You MUST skip all of them.
 - If the user asks for shippers/leads, return 3 to 10 leads when possible.
 - Keep outreach emails short, professional, and persuasive. Format them with a brief greeting, 1-2 short paragraphs stating the value for freight/logistics, a clear call-to-action, and end with "Best regards" on its own line. Do NOT include a signature block (name, title, phone, email) — the user's Gmail signature is appended automatically when the email is sent.
-- Use concise subject lines (4-10 words) that clearly reference freight/logistics.
+- Subject lines must sound like a freight broker reaching out to a carrier about available capacity or backup carrier options. Examples: "Available lanes — looking for reliable carriers", "Freight capacity partnership opportunity", "Backup carrier options for [lane/region]", "Looking for carriers — [region/lane]", "Lane availability inquiry", "Carrier capacity — [company name]". Keep subjects 4-8 words, professional, and specific to freight/carrier capacity. Do NOT use generic sales subject lines like "Quick question" or "Inquiry" or "Introduction".
 - Mention freight / logistics value and a clear next step.
 - The reply field must be human-readable and concise.
 - PERSONALIZATION: Each draft MUST reference the specific company name and mention something relevant to their business. Do NOT copy the same email body across leads. Vary the greeting, opening line, value proposition, and call-to-action for each lead. Avoid generic phrases like "I hope this message finds you well" for every email — mix up openings.
@@ -153,7 +153,7 @@ If this is a lead request, return exactly this structure:
       "email": "contact@company.com",
       "location": "City, State",
       "draft": {
-        "subject": "Email subject line",
+        "subject": "Available lanes — looking for reliable carriers",
         "body": "Full outreach email (greeting, 1-2 short paragraphs, CTA, end with Best regards — no signature block)",
         "attachments": [
           {
