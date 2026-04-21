@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 interface CarrierData {
   dotNumber?: string;
@@ -129,11 +130,13 @@ const RISK_COLORS = {
 };
 
 export default function CarriersPage() {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [searchType, setSearchType] = useState<"dot" | "mc">("dot");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [carriers, setCarriers] = useState<CarrierData[]>([]);
+  const [initialLookupDone, setInitialLookupDone] = useState(false);
 
   async function handleLookup() {
     if (!query.trim()) return;
@@ -159,6 +162,25 @@ export default function CarriersPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const dot = searchParams.get("dot");
+    const mc = searchParams.get("mc");
+    if (dot) {
+      setQuery(dot);
+      setSearchType("dot");
+    } else if (mc) {
+      setQuery(mc);
+      setSearchType("mc");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!initialLookupDone && query) {
+      setInitialLookupDone(true);
+      handleLookup();
+    }
+  }, [query, initialLookupDone]);
 
   return (
     <div className="h-[calc(100vh-6rem)] flex gap-4">

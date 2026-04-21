@@ -4,26 +4,76 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type DashboardStats = {
+  emailsSent: number;
+  newEmails: number;
+  followUpCount: number;
+  closestFollowUp: {
+    id: string;
+    scheduledAt: string | null;
+    to: string;
+    subject: string;
+  } | null;
+};
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "Ready to send";
+  const days = Math.floor(ms / 86400000);
+  const hours = Math.floor((ms % 86400000) / 3600000);
+  const minutes = Math.floor((ms % 3600000) / 60000);
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
 
-  const [emailsSent30d, setEmailsSent30d] = useState(128);
-  const [newEmails, setNewEmails] = useState(3);
-  const [lastSynced, setLastSynced] = useState("Just now");
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [now, setNow] = useState(Date.now());
 
+  // Carrier lookup state
+  const [lookupType, setLookupType] = useState<"DOT" | "MC">("DOT");
+  const [lookupValue, setLookupValue] = useState("");
+
+  // Fetch dashboard stats
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNewEmails((prev) => Math.max(0, prev + (Math.random() > 0.55 ? 1 : -1)));
-      setLastSynced(
-        new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      );
-    }, 5000);
+    const fetchStats = async () => {
+      try {
+        const res = await fetch("/api/dashboard/stats");
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data);
+        }
+      } catch {
+        // non-critical
+      }
+    };
 
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Tick countdown every second
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleCarrierLookup = () => {
+    if (!lookupValue.trim()) return;
+    const param = lookupType === "DOT" ? "dot" : "mc";
+    router.push(`/dashboard/carriers?${param}=${encodeURIComponent(lookupValue.trim())}`);
+  };
+
+  const followUpCountdown = stats?.closestFollowUp?.scheduledAt
+    ? formatCountdown(new Date(stats.closestFollowUp.scheduledAt).getTime() - now)
+    : null;
+
+  const followUpReady = stats?.closestFollowUp?.scheduledAt
+    ? new Date(stats.closestFollowUp.scheduledAt).getTime() <= now
+    : false;
 
   return (
     <div className="space-y-6">
@@ -34,104 +84,143 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Emails Sent */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
         >
-          <p className="text-sm text-gray-400">Emails sent</p>
+          <p className="text-sm text-gray-400">Emails Sent</p>
           <h2 className="mt-3 text-4xl font-bold tracking-tight">
-            {emailsSent30d}
+            {stats?.emailsSent ?? "—"}
           </h2>
-          <p className="mt-2 text-sm text-gray-300">Rolling last 30 days</p>
+          <p className="mt-2 text-sm text-gray-300">Last 30 days</p>
 
           <div className="mt-5 h-2 rounded-full bg-white/10">
-            <div className="h-2 w-[72%] rounded-full bg-gradient-to-r from-blue-500 to-cyan-400" />
+            <div
+              className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400"
+              style={{ width: `${Math.min(100, ((stats?.emailsSent ?? 0) / 200) * 100)}%` }}
+            />
           </div>
-
-          <p className="mt-3 text-xs text-gray-500">
-            This will later pull from your sent message logs.
-          </p>
         </motion.div>
 
+        {/* New Emails */}
         <motion.button
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           whileHover={{ scale: 1.02 }}
-          onClick={() => router.push("/dashboard/inbox")}
+          onClick={() => router.push("/dashboard/inbox?tab=approval")}
           className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/15 to-green-500/10 p-6 text-left backdrop-blur-xl transition hover:border-emerald-400/40"
         >
-          <p className="text-sm text-gray-400">New emails</p>
+          <p className="text-sm text-gray-400">New Emails</p>
           <h2 className="mt-3 text-4xl font-bold tracking-tight">
-            {newEmails}
+            {stats?.newEmails ?? "—"}
           </h2>
-          <p className="mt-2 text-sm text-gray-300">
-            Updated {lastSynced}
-          </p>
+          <p className="mt-2 text-sm text-gray-300">Drafts awaiting approval</p>
 
           <div className="mt-5 inline-flex rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white/80">
             Open inbox
           </div>
-
-          <p className="mt-3 text-xs text-gray-500">
-            This will later sync from the connected Gmail inbox.
-          </p>
         </motion.button>
 
-        <motion.div
+        {/* Follow Ups */}
+        <motion.button
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-3xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-xl"
+          whileHover={{ scale: 1.02 }}
+          onClick={() => router.push("/dashboard/inbox?tab=followUp")}
+          className="rounded-3xl border border-white/10 bg-gradient-to-br from-amber-500/15 to-yellow-500/10 p-6 text-left backdrop-blur-xl transition hover:border-amber-400/40"
         >
-          <p className="text-sm text-gray-400">Rate tools</p>
-          <h2 className="mt-3 text-2xl font-bold tracking-tight">Quote A Lane</h2>
-          <p className="mt-2 text-sm text-gray-300">Get a quick lane quote with mileage and estimated rates between origin and destination.</p>
+          <p className="text-sm text-gray-400">Follow Ups</p>
+          <h2 className="mt-3 text-4xl font-bold tracking-tight">
+            {stats?.followUpCount ?? "—"}
+          </h2>
 
-          <div className="mt-5 inline-flex gap-2">
+          {stats?.closestFollowUp && (
+            <div className="mt-2">
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  followUpReady
+                    ? "bg-green-500/20 text-green-400"
+                    : "bg-yellow-500/20 text-yellow-400"
+                }`}
+              >
+                {followUpCountdown}
+              </span>
+              <p className="mt-1 text-xs text-gray-400 truncate">
+                Next: {stats.closestFollowUp.subject}
+              </p>
+            </div>
+          )}
+
+          {!stats?.closestFollowUp && stats?.followUpCount === 0 && (
+            <p className="mt-2 text-sm text-gray-300">No follow-ups scheduled</p>
+          )}
+
+          <div className="mt-5 inline-flex rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white/80">
+            View follow-ups
+          </div>
+        </motion.button>
+      </div>
+
+      {/* Carrier Lookup */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
+      >
+        <p className="text-sm text-gray-400">Quick Lookup</p>
+        <h2 className="mt-2 text-2xl font-bold tracking-tight">Carrier Lookup</h2>
+        <p className="mt-2 text-sm text-gray-300">
+          Look up a carrier by DOT or MC number to view their FMCSA profile and risk assessment.
+        </p>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          {/* DOT / MC Toggle */}
+          <div className="inline-flex rounded-xl border border-white/10 bg-black/30 p-1">
             <button
-              onClick={() => router.push("/dashboard/rate-lookup")}
-              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              onClick={() => setLookupType("DOT")}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                lookupType === "DOT"
+                  ? "bg-white/15 text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
             >
-              Quote A Lane
+              DOT
+            </button>
+            <button
+              onClick={() => setLookupType("MC")}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                lookupType === "MC"
+                  ? "bg-white/15 text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              MC
             </button>
           </div>
-        </motion.div>
-      </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-          <p className="text-sm text-gray-400">Inbox status</p>
-          <h3 className="mt-2 text-xl font-semibold">Gmail sync</h3>
-          <p className="mt-3 text-sm leading-6 text-gray-300">
-            This section will later show the connected inbox, unread mail, and
-            reply activity inside the app.
-          </p>
+          {/* Input */}
+          <input
+            type="text"
+            value={lookupValue}
+            onChange={(e) => setLookupValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCarrierLookup()}
+            placeholder={lookupType === "DOT" ? "Enter DOT number..." : "Enter MC number..."}
+            className="flex-1 min-w-[200px] rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white placeholder-gray-500 outline-none focus:border-blue-500/50"
+          />
 
+          {/* Lookup Button */}
           <button
-            onClick={() => router.push("/dashboard/inbox")}
-            className="mt-6 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+            onClick={handleCarrierLookup}
+            disabled={!lookupValue.trim()}
+            className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Go to inbox
+            Lookup
           </button>
         </div>
-
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-          <p className="text-sm text-gray-400">Future slots</p>
-          <h3 className="mt-2 text-xl font-semibold">Room to grow</h3>
-          <div className="mt-4 space-y-3 text-sm text-gray-300">
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-              AI assistant activity
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-              Drafts waiting for review
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-              Campaign performance
-            </div>
-          </div>
-        </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
