@@ -117,18 +117,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Provide ?dot= or ?mc= query parameter" }, { status: 400 });
     }
 
-    // Use SAFER query endpoint
-    const queryParam = dot ? "USDOT" : "MC_DOCKET";
+    // Use SAFER query endpoint via POST (SAFER form uses METHOD="Post")
+    const queryParam = dot ? "USDOT" : "MC_MX";
     const queryString = dot || mc!;
 
-    const url = `https://safer.fmcsa.dot.gov/query.asp?query_type=queryCarrierSnapshot&query_param=${queryParam}&query_string=${encodeURIComponent(queryString)}`;
+    const url = "https://safer.fmcsa.dot.gov/query.asp";
+    const body = `query_type=queryCarrierSnapshot&query_param=${queryParam}&query_string=${encodeURIComponent(queryString)}&searchtype=ANY`;
 
     const res = await fetch(url, {
+      method: "POST",
       headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://safer.fmcsa.dot.gov/CompanySnapshot.aspx",
+        "Origin": "https://safer.fmcsa.dot.gov",
       },
-      next: { revalidate: 60 * 60 },
+      body,
     });
 
     if (!res.ok) {
@@ -144,7 +149,8 @@ export async function GET(request: Request) {
       html.includes("No results found") ||
       html.includes("Sorry, your query")
     ) {
-      return NextResponse.json({ error: "No carrier found with that number" }, { status: 404 });
+      console.error("SAFER no record found, first 500 chars:", html.slice(0, 500));
+      return NextResponse.json({ error: "No carrier found with that number", debug: html.slice(0, 300) }, { status: 404 });
     }
 
     const carrier = parseSaferHtml(html);
