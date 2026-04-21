@@ -12,9 +12,6 @@ export async function GET() {
     }
 
     const users = await prisma.user.findMany({
-      where: {
-        isOnboarded: true,
-      },
       select: {
         id: true,
         name: true,
