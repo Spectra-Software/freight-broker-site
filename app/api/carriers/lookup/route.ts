@@ -112,7 +112,10 @@ export async function GET(request: Request) {
     const url = `https://safer.fmcsa.dot.gov/query.asp?query_type=queryCarrierSnapshot&query_param=${queryParam}&query_string=${encodeURIComponent(queryString)}`;
 
     const res = await fetch(url, {
-      headers: { "Accept": "text/html" },
+      headers: {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
       next: { revalidate: 60 * 60 },
     });
 
@@ -122,9 +125,14 @@ export async function GET(request: Request) {
 
     const html = await res.text();
 
-    // Check if we got a valid carrier page (not "No carrier found")
-    if (html.includes("No carrier found") || html.includes("No results found") || html.includes("Sorry, your query")) {
-      return NextResponse.json({ error: "No carrier found" }, { status: 404 });
+    // Check if we got a valid carrier page (not "RECORD NOT FOUND" or similar)
+    if (
+      html.includes("RECORD NOT FOUND") ||
+      html.includes("No carrier found") ||
+      html.includes("No results found") ||
+      html.includes("Sorry, your query")
+    ) {
+      return NextResponse.json({ error: "No carrier found with that number" }, { status: 404 });
     }
 
     const carrier = parseSaferHtml(html);
