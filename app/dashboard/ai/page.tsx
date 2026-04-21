@@ -495,7 +495,7 @@ export default function AIPage() {
 
   const goToApprovals = () => {
     // Navigate to the inbox where the user can select the "For Approval" tab
-    router.push("/dashboard/inbox");
+    router.push("/dashboard/inbox?tab=approval");
   };
 
   return (
