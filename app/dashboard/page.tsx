@@ -110,14 +110,14 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           whileHover={{ scale: 1.02 }}
-          onClick={() => router.push("/dashboard/inbox?tab=approval")}
+          onClick={() => router.push("/dashboard/inbox?tab=inbox")}
           className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/15 to-green-500/10 p-6 text-left backdrop-blur-xl transition hover:border-emerald-400/40"
         >
           <p className="text-sm text-gray-400">New Emails</p>
           <h2 className="mt-3 text-4xl font-bold tracking-tight">
             {stats?.newEmails ?? "—"}
           </h2>
-          <p className="mt-2 text-sm text-gray-300">Drafts awaiting approval</p>
+          <p className="mt-2 text-sm text-gray-300">Unread in your inbox</p>
 
           <div className="mt-5 inline-flex rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white/80">
             Open inbox

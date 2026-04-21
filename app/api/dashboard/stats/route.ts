@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getGmailClient } from "@/lib/gmail";
 
 export async function GET() {
   try {
@@ -42,13 +43,22 @@ export async function GET() {
       },
     });
 
-    // Count new inbox emails (from Gmail — we'll count DRAFT/FOR_APPROVAL as "new" since they need action)
-    const newEmails = await prisma.email.count({
-      where: {
-        userId,
-        status: "DRAFT",
-      },
-    });
+    // Count new unread inbox emails from Gmail
+    let newEmails = 0;
+    try {
+      const accessToken = (session as any).accessToken;
+      if (accessToken) {
+        const gmail = getGmailClient(accessToken);
+        const res = await gmail.users.messages.list({
+          userId: "me",
+          maxResults: 500,
+          q: "is:unread in:inbox",
+        });
+        newEmails = res.data.messages?.length ?? 0;
+      }
+    } catch (e) {
+      console.warn("DASHBOARD STATS: Could not fetch Gmail unread count", e);
+    }
 
     // Follow-ups: count and find the closest one
     const followUpCount = await prisma.email.count({
