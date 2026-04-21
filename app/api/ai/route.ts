@@ -127,6 +127,7 @@ Important rules:
 - Use concise subject lines (4-10 words) that clearly reference freight/logistics.
 - Mention freight / logistics value and a clear next step.
 - The reply field must be human-readable and concise.
+- PERSONALIZATION: Each draft MUST reference the specific company name and mention something relevant to their business. Do NOT copy the same email body across leads. Vary the greeting, opening line, value proposition, and call-to-action for each lead. Avoid generic phrases like "I hope this message finds you well" for every email — mix up openings.
 
 EMAIL PRIORITY RULES (critical for freight broker outreach):
 - When finding emails for a company, prioritize logistics/shipping-specific addresses in this order:
