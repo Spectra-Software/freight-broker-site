@@ -12,8 +12,8 @@ export async function GET() {
     }
 
     // Use native v2 route for U.S. on-highway diesel weekly average (dollars per gallon)
-    // Series facet: EMM_EPM0_PTE_NUS_DPG under petroleum/pri/fuel
-    const url = `https://api.eia.gov/v2/petroleum/pri/fuel/data?api_key=${encodeURIComponent(apiKey)}&facets[series][]=EMM_EPM0_PTE_NUS_DPG&frequency=weekly&sort[0][column]=period&sort[0][direction]=desc&length=1`;
+    // Series facet: EMM_EPM0_PTE_NUS_DPG under petroleum/pri/gnd
+    const url = `https://api.eia.gov/v2/petroleum/pri/gnd/data?api_key=${encodeURIComponent(apiKey)}&facets[series][]=EMM_EPM0_PTE_NUS_DPG&frequency=weekly&sort[0][column]=period&sort[0][direction]=desc&length=1`;
 
     const res = await fetch(url, { next: { revalidate: 60 * 60 } });
     if (!res.ok) {
