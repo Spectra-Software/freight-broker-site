@@ -29,7 +29,7 @@ export async function GET() {
 
     if (!latest || (typeof latest.value !== "number" && typeof latest.value !== "string")) {
       console.error("EIA no valid data in response", JSON.stringify(data).slice(0, 500));
-      return NextResponse.json({ price: 3.5, currency: "USD", source: "eia", error: "no data" });
+      return NextResponse.json({ price: 3.5, currency: "USD", source: "eia", error: "no data", raw: JSON.stringify(data).slice(0, 500) });
     }
 
     const price = Number(latest.value);
