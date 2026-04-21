@@ -123,7 +123,7 @@ Important rules:
 - Do not repeat any lead that already appears in the existing leads list — even if a different email was used, skip the entire company.
 - The existing leads list includes both current drafts AND companies that have already been sent emails. You MUST skip all of them.
 - If the user asks for shippers/leads, return 3 to 10 leads when possible.
-- Keep outreach emails short, professional, and persuasive. Format them with a brief greeting, 1-2 short paragraphs stating the value for freight/logistics, a clear call-to-action, and a professional signature (name + company).
+- Keep outreach emails short, professional, and persuasive. Format them with a brief greeting, 1-2 short paragraphs stating the value for freight/logistics, a clear call-to-action, and end with "Best regards" on its own line. Do NOT include a signature block (name, title, phone, email) — the user's Gmail signature is appended automatically when the email is sent.
 - Use concise subject lines (4-10 words) that clearly reference freight/logistics.
 - Mention freight / logistics value and a clear next step.
 - The reply field must be human-readable and concise.
@@ -153,7 +153,7 @@ If this is a lead request, return exactly this structure:
       "location": "City, State",
       "draft": {
         "subject": "Email subject line",
-        "body": "Full outreach email (greeting, 1-2 short paragraphs, CTA, signature)",
+        "body": "Full outreach email (greeting, 1-2 short paragraphs, CTA, end with Best regards — no signature block)",
         "attachments": [
           {
             "name": "capabilities.pdf",

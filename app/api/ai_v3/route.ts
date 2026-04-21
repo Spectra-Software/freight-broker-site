@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { fetchGmailSignatureHtml, gmailSignatureHtmlToPlainText } from "@/lib/google/gmail";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
 
@@ -159,33 +158,11 @@ export async function POST(req: Request) {
           .join(", ")
       : "None";
 
-    let gmailSignaturePlain = "";
-    try {
-      const session = await getServerSession(authOptions);
-      const accessToken = (session as { accessToken?: string } | null)?.accessToken;
-      if (accessToken) {
-        const sigHtml = await fetchGmailSignatureHtml(accessToken);
-        if (sigHtml) {
-          const plain = gmailSignatureHtmlToPlainText(sigHtml);
-          gmailSignaturePlain =
-            plain.length > 4000 ? `${plain.slice(0, 4000)}\n[signature truncated]` : plain;
-        }
-      }
-    } catch (e) {
-      console.warn("AI V3: Gmail signature unavailable", e);
-    }
+    const draftBodyRule = `- draft must include subject and body. Body: greeting, 1-2 short paragraphs, clear call to action, and end with "Best regards" on its own line. Do NOT include a signature block (name, title, phone, email) — the user's Gmail signature is appended automatically when the email is sent. Use paragraph breaks (\\n\\n).`;
 
-    const draftBodyRule = gmailSignaturePlain
-      ? `- draft must include subject and body. Body: greeting, 1-2 short paragraphs, clear call to action, then the user's Gmail signature EXACTLY as in "User Gmail signature" below (same words and line breaks). Use \\\\n\\\\n between the last paragraph and the signature if needed. Do not add a different name, title, phone, or email sign-off above the signature.`
-      : `- draft must include subject and body. Body MUST be a polished, formal email with a greeting, 1-2 short paragraphs, a clear call to action, and a professional signature (name and contact). Use paragraph breaks (\\\\n\\\\n).`;
+    const referenceStyle = `\\n\\nReference style (tone and formatting):\\nHey Team,\\n\\nI hope this message finds you well. I wanted to take a moment to introduce Haulora Freight and share our company information with you.\\n\\nWe work with a network of reliable carriers across step deck, flatbed, and open-deck freight, and our focus is helping businesses like yours keep their shipments moving smoothly. Whether it's last-minute loads, challenging lanes, or consistent freight.\\n\\nI've attached our information for your review. Please feel free to reach out at any time by email. I'd be happy to discuss how we can support your logistics needs and provide dependable capacity whenever you need it.\\n\\nThank you for your time, and I look forward to the opportunity to work with your team.\\n\\nBest regards`;
 
-    const referenceStyle = gmailSignaturePlain
-      ? ""
-      : `\\n\\nReference style (tone and formatting):\\nHey Team,\\\\n\\\\nI hope this message finds you well. I wanted to take a moment to introduce Haulora Freight and share our company information with you.\\\\n\\\\nWe work with a network of reliable carriers across step deck, flatbed, and open-deck freight, and our focus is helping businesses like yours keep their shipments moving smoothly. Whether it’s last-minute loads, challenging lanes, or consistent freight.\\\\n\\\\nI’ve attached our information for your review. Please feel free to reach out at any time by email. I’d be happy to discuss how we can support your logistics needs and provide dependable capacity whenever you need it.\\\\n\\\\nThank you for your time, and I look forward to the opportunity to work with your team.\\\\n\\\\nBest regards,\\\\n\\\\nAustin`;
-
-    const signatureBlock = gmailSignaturePlain
-      ? `\\n\\nUser Gmail signature (plain text):\\n${embedInPromptLiteral(gmailSignaturePlain)}\\n`
-      : "";
+    const signatureBlock = "";
 
     const system = `You are an AI assistant that helps freight brokers find shippers and produce professional outreach drafts.\\n\\nRules:\\n- ALWAYS return valid JSON and nothing else.\\n- Top-level response must be an object: { \"reply\": string, \"leads\": array }.\\n- When asked to find leads return 3-10 leads when possible.\\n- Each lead must include: company, website (or null), email (or null), location (or null), and draft.\\n${draftBodyRule}\\n- If attachments are suggested, include attachments array on draft with objects: { name: string, mimeType?: string, url?: string } — include url when an uploaded attachment with that name exists.\\n- If you cannot produce leads, return leads: [] and a helpful reply.\\n\\nEMAIL PRIORITY RULES (critical for freight broker outreach):\\n- When finding emails for a company, prioritize logistics/shipping-specific addresses in this order:\\n  1. logistics@, shipping@, dispatch@, transportation@, freight@, traffic@ — these are the most relevant contacts for freight brokers\\n  2. operations@, ops@, warehouse@, supplychain@ — operational contacts\\n  3. Contact form URLs or specific person emails found on the company's 'Contact Us' or 'Careers' page\\n  4. info@, sales@, contact@ — only as a last resort when no logistics-specific email exists\\n- NEVER make up or guess email addresses. Only use emails you are confident exist based on common patterns or known company data.\\n- If you cannot find a logistics-specific email, prefer the company's website contact page URL over a generic email.\\n\\nDEDUPLICATION RULES:\\n- Do NOT return any lead whose company name or email matches one in the 'Existing leads' list below — even if the company was already contacted under a different email, skip the entire company.\\n- The existing leads list includes both current drafts AND companies that have already been sent emails. You MUST skip all of them.${referenceStyle}${signatureBlock}\\n\\nExisting leads (DO NOT repeat any of these companies):\\n${existingText}\\n\\nUploaded attachments:\\n${attachmentText}\\n\\nRespond ONLY with JSON containing reply and leads. Do not wrap in markdown.`;
 
