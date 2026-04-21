@@ -5,11 +5,11 @@ import { useEffect, useRef, useState } from "react";
 type LatLng = { lat: number; lng: number };
 
 const trailerRates: Record<string, number> = {
-  "dry_van": 1.6,
-  "reefer": 1.9,
-  "flatbed": 2.2,
-  "step_deck": 2.35,
-  "open_deck": 2.3,
+  "dry_van": 2.75,
+  "reefer": 3.1,
+  "flatbed": 3.25,
+  "step_deck": 3.4,
+  "open_deck": 3.35,
 };
 
 export default function QuoteALanePage() {
@@ -195,11 +195,13 @@ export default function QuoteALanePage() {
       setMiles(Number(m.toFixed(1)));
 
       // Fetch national diesel price and adjust rate per mile
+      let diesel = 3.5;
       try {
         const resp = await fetch("/api/fuel/national");
         const json = await resp.json();
         if (json && typeof json.price === "number") {
-          setDieselPrice(Number(json.price));
+          diesel = Number(json.price);
+          setDieselPrice(diesel);
         }
       } catch (e) {
         // ignore
@@ -207,7 +209,6 @@ export default function QuoteALanePage() {
 
       const baseRatePerMile = trailerRates[selectedTrailer] ?? trailerRates.dry_van;
       // adjust per-mile by diesel price factor (simple proportional scaling to a baseline of $3.5)
-      const diesel = dieselPrice ?? 3.5;
       const adjusted = baseRatePerMile * (diesel / 3.5);
       setEstimatedRate(Number((m * adjusted).toFixed(2)));
     } catch (e: any) {
