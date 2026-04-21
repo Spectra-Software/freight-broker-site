@@ -55,6 +55,20 @@ function normalize(value?: string | null) {
   return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** Strip a prepended origin from an already-absolute URL.
+ *  e.g. "https://app.example.comhttps://blob.storage.com/x" → "https://blob.storage.com/x"
+ */
+function sanitizeAttachmentUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let u = raw.trim();
+  const doubleUrlMatch = u.match(/^https?:\/\/[^\s]+?(https?:\/\/[^\s]+)/i);
+  if (doubleUrlMatch) {
+    console.warn("SANITIZE ATTACHMENT URL: extracting embedded URL from", u);
+    u = doubleUrlMatch[1];
+  }
+  return u || null;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -193,7 +207,7 @@ async function createDraftsForUser(req: Request, userId: string) {
       .filter((a: DraftAttachmentInput | undefined) => !!a && !!a.name)
       .map((a: DraftAttachmentInput) => ({
         name: (a.name || "").trim(),
-        url: a.url ? String(a.url) : null,
+        url: sanitizeAttachmentUrl(a.url),
         mimeType: a.mimeType ?? a.type ?? null,
       }));
 

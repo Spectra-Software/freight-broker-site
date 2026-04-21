@@ -122,7 +122,16 @@ function stripTrailingPlainSignature(body: string, signaturePlain: string): stri
 
 /** Server-side fetch needs an absolute URL when the DB stores a site-relative path. */
 function resolveAttachmentFetchUrl(fileUrl: string): string {
-  const u = fileUrl.trim();
+  let u = fileUrl.trim();
+
+  // Fix corrupted URLs where an origin was prepended to an already-absolute URL
+  // e.g. "https://app.haulorafreight.comhttps://blob.vercel-storage.com/..."
+  const doubleUrlMatch = u.match(/^https?:\/\/[^\s]+?(https?:\/\/[^\s]+)/i);
+  if (doubleUrlMatch) {
+    console.warn("ATTACHMENT URL FIX: extracting embedded URL from", u);
+    u = doubleUrlMatch[1];
+  }
+
   if (/^https?:\/\//i.test(u)) return u;
   if (u.startsWith("/")) {
     const base = process.env.NEXTAUTH_URL || process.env.VERCEL_URL;
