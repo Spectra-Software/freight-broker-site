@@ -114,7 +114,8 @@
               "RelativeToolTip": "prisma\\schema.prisma",
               "ViewState": "AgIAAAAAAAAAAAAAAAAYwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
-              "WhenOpened": "2026-04-20T01:28:54.799Z"
+              "WhenOpened": "2026-04-20T01:28:54.799Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -126,7 +127,8 @@
               "RelativeToolTip": "app\\dashboard\\settings\\page.tsx",
               "ViewState": "AgIAACwAAAAAAAAAAABBwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T01:17:17.043Z"
+              "WhenOpened": "2026-04-20T01:17:17.043Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -138,7 +140,8 @@
               "RelativeToolTip": "app\\api\\gmail\\send\\route.ts",
               "ViewState": "AgIAAEgAAAAAAAAAAAAtwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T00:57:10.773Z"
+              "WhenOpened": "2026-04-20T00:57:10.773Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -163,7 +166,8 @@
               "RelativeToolTip": "app\\api\\user\\preference\\route.ts",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T01:17:23.368Z"
+              "WhenOpened": "2026-04-20T01:17:23.368Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -175,7 +179,8 @@
               "RelativeToolTip": "lib\\auth.ts",
               "ViewState": "AgIAAKkAAAAAAAAAAABBwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T01:17:27.64Z"
+              "WhenOpened": "2026-04-20T01:17:27.64Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -187,7 +192,8 @@
               "RelativeToolTip": "lib\\google\\gmail.ts",
               "ViewState": "AgIAAA4AAAAAAAAAAAAYwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T01:01:39.881Z"
+              "WhenOpened": "2026-04-20T01:01:39.881Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -199,7 +205,8 @@
               "RelativeToolTip": "app\\api\\fuel\\national\\route.ts",
               "ViewState": "AgIAAAYAAAAAAAAAAAAAACoAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T00:43:37.265Z"
+              "WhenOpened": "2026-04-20T00:43:37.265Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -211,7 +218,8 @@
               "RelativeToolTip": "app\\dashboard\\rate-lookup\\page.tsx",
               "ViewState": "AgIAAGEAAAAAAAAAAAAYwBoBAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T00:22:19.431Z"
+              "WhenOpened": "2026-04-20T00:22:19.431Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -223,7 +231,8 @@
               "RelativeToolTip": "app\\dashboard\\layout.tsx",
               "ViewState": "AgIAACcAAAAAAAAAAAAYwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T00:31:53.933Z"
+              "WhenOpened": "2026-04-20T00:31:53.933Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -235,7 +244,8 @@
               "RelativeToolTip": "app\\dashboard\\ai\\page.tsx",
               "ViewState": "AgIAAEMCAAAAAAAAAAAswJcCAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-19T00:23:29.132Z"
+              "WhenOpened": "2026-04-19T00:23:29.132Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -247,7 +257,8 @@
               "RelativeToolTip": "app\\api\\rates\\carriers\\route.ts",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T00:25:24.677Z"
+              "WhenOpened": "2026-04-20T00:25:24.677Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -259,7 +270,8 @@
               "RelativeToolTip": "app\\dashboard\\page.tsx",
               "ViewState": "AgIAAEUAAAAAAAAAAAAYwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-20T00:25:08.949Z"
+              "WhenOpened": "2026-04-20T00:25:08.949Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -271,7 +283,8 @@
               "RelativeToolTip": "app\\api\\ai\\validate\\route.ts",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAC0AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-19T23:59:57.479Z"
+              "WhenOpened": "2026-04-19T23:59:57.479Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -281,7 +294,6 @@
               "RelativeDocumentMoniker": "app\\api\\ai_v2\\route.ts",
               "ToolTip": "C:\\Users\\theau\\freight-broker-site\\app\\api\\ai_v2\\route.ts",
               "RelativeToolTip": "app\\api\\ai_v2\\route.ts",
-              "ViewState": "AgIAADwAAAAAAAAAAAAtwHEAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
               "WhenOpened": "2026-04-19T23:39:39.537Z"
             },
@@ -295,7 +307,8 @@
               "RelativeToolTip": "app\\api\\uploads\\route.ts",
               "ViewState": "AgIAADsAAAAAAAAAAAAmwGIAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-19T03:56:06.547Z"
+              "WhenOpened": "2026-04-19T03:56:06.547Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -307,7 +320,8 @@
               "RelativeToolTip": "app\\api\\gmail\\create-drafts\\route.ts",
               "ViewState": "AgIAABMBAAAAAAAAAAAowAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-19T00:29:56.611Z"
+              "WhenOpened": "2026-04-19T00:29:56.611Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -319,7 +333,8 @@
               "RelativeToolTip": "app\\api\\gmail\\delete\\route.ts",
               "ViewState": "AgIAABIAAAAAAAAAAAAYwDMAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-19T04:00:06.13Z"
+              "WhenOpened": "2026-04-19T04:00:06.13Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -331,7 +346,8 @@
               "RelativeToolTip": "app\\api\\ai\\route.ts",
               "ViewState": "AgIAAJ4AAAAAAAAAAAAtwKQAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-19T00:25:03.149Z"
+              "WhenOpened": "2026-04-19T00:25:03.149Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -343,7 +359,8 @@
               "RelativeToolTip": "app\\api\\uploads\\files\\[filename]\\route.ts",
               "ViewState": "AgIAAAkAAAAAAAAAAAAowDEAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-19T04:28:21.867Z"
+              "WhenOpened": "2026-04-19T04:28:21.867Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -355,7 +372,8 @@
               "RelativeToolTip": ".github\\copilot-instructions.md",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAADOAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
-              "WhenOpened": "2026-04-19T03:57:54.426Z"
+              "WhenOpened": "2026-04-19T03:57:54.426Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -367,7 +385,8 @@
               "RelativeToolTip": "app\\dashboard\\inbox\\page.tsx",
               "ViewState": "AgIAAPAAAAAAAAAAAAAtwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-19T03:59:41.942Z"
+              "WhenOpened": "2026-04-19T03:59:41.942Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -379,7 +398,8 @@
               "RelativeToolTip": "package.json",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2026-04-19T00:29:41.78Z"
+              "WhenOpened": "2026-04-19T00:29:41.78Z",
+              "EditorCaption": ""
             }
           ]
         }

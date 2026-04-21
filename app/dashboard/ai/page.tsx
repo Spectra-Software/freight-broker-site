@@ -230,11 +230,24 @@ export default function AIPage() {
         if (!res2.ok) throw new Error(data?.error || "Upload failed");
       }
 
-      const fullUrl = (data.url && window?.location ? `${window.location.origin}${data.url}` : data.url) as string;
+      let fullUrl = data.url as string | undefined;
+
+      if (fullUrl) {
+        // If it's NOT already absolute (no http:// or https://), and we have window.location, prefix with origin
+        if (!/^https?:\/\//i.test(fullUrl) && typeof window !== "undefined" && window.location) {
+          const origin = window.location.origin.replace(/\/+$/, "");
+          const path = fullUrl.replace(/^\/+/, "");
+          fullUrl = `${origin}/${path}`;
+        }
+      }
 
       setUploadedAttachments((prev) => [
         ...prev,
-        { name: data.name || file.name, url: fullUrl, mimeType: data.mimeType || file.type },
+        {
+          name: data.name || file.name,
+          url: fullUrl ?? null,
+          mimeType: data.mimeType || file.type,
+        },
       ]);
     } catch (err) {
       console.error("Upload error:", err);
