@@ -34,11 +34,13 @@ export async function GET(request: Request) {
     }
 
     const data = await res.json();
-    // FMCSA returns { content: { carrier: [...] } } or { content: { carrier: {...} } }
-    const carrier = data?.content?.carrier;
+
+    // Try multiple response formats FMCSA may return
+    const carrier = data?.content?.carrier ?? data?.carrier ?? data?.content ?? null;
 
     if (!carrier) {
-      return NextResponse.json({ error: "No carrier found" }, { status: 404 });
+      console.error("FMCSA no carrier in response", JSON.stringify(data).slice(0, 800));
+      return NextResponse.json({ error: "No carrier found", raw: JSON.stringify(data).slice(0, 800) }, { status: 404 });
     }
 
     // Normalize to always return an array
