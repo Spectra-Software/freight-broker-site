@@ -181,9 +181,14 @@ export async function POST(req: Request) {
       tools: [{ type: "web_search" }],
     });
 
-    // Extract text from Responses API output (array of output items)
+    // Extract text and web search activity from Responses API output
     let raw = "";
+    const searchSteps: { query: string; status: string }[] = [];
     for (const item of response.output) {
+      if (item.type === "web_search_call") {
+        const ws = item as any;
+        searchSteps.push({ query: ws.query || ws.action?.query || "Searching the web...", status: ws.status || "completed" });
+      }
       if (item.type === "message" && Array.isArray((item as any).content)) {
         for (const block of (item as any).content) {
           if (block.type === "output_text" && typeof block.text === "string") {
@@ -194,16 +199,18 @@ export async function POST(req: Request) {
     }
     raw = raw.trim();
     console.log("OPENAI RAW RESPONSE:", raw);
+    console.log("OPENAI SEARCH STEPS:", JSON.stringify(searchSteps));
 
     const parsed = parseAiResponseJson(raw);
     if (parsed) {
       return NextResponse.json({
         reply: typeof parsed.reply === "string" ? parsed.reply : "Done.",
         leads: Array.isArray(parsed.leads) ? parsed.leads : [],
+        searchSteps,
       });
     }
 
-    return NextResponse.json({ reply: raw || "No response from AI", leads: [] });
+    return NextResponse.json({ reply: raw || "No response from AI", leads: [], searchSteps });
   } catch (err: unknown) {
     console.error("OPENAI ERROR:", err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "AI failed" }, { status: 500 });

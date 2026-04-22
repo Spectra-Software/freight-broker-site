@@ -124,6 +124,7 @@ export default function AIPage() {
   const [lastCreateStats, setLastCreateStats] = useState<{ createdCount: number; skippedCount: number; skippedReasons: string[] } | null>(null);
   const [showPreviewPopup, setShowPreviewPopup] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
   const [sentCompanies, setSentCompanies] = useState<Array<{ company: string; email: string; website: string | null }>>([]);
 
   // Load active chat data when activeChatId changes
@@ -221,6 +222,7 @@ export default function AIPage() {
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
+    setThinkingSteps(["Analyzing your request..."]);
 
     try {
       const existingLeads = [
@@ -229,9 +231,16 @@ export default function AIPage() {
       ];
 
       const aiEndpoint = provider === "openai" ? "/api/ai_openai" : "/api/ai_v3";
+      setThinkingSteps((prev) => [...prev, provider === "openai" ? "Searching the web for leads..." : "Generating response..."]);
       const aiRes = await fetch(aiEndpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: trimmed, existingLeads, attachments: uploadedAttachments }) });
-      const aiData = (await aiRes.json()) as AIResponse & { error?: string };
+      const aiData = (await aiRes.json()) as AIResponse & { error?: string; searchSteps?: { query: string; status: string }[] };
       if (!aiRes.ok) throw new Error(aiData.error || "AI failed");
+
+      // Show web search queries as thinking steps
+      if (Array.isArray(aiData.searchSteps) && aiData.searchSteps.length > 0) {
+        setThinkingSteps((prev) => [...prev, ...aiData.searchSteps!.map((s) => `Searched: "${s.query}"`)]);
+      }
+      setThinkingSteps((prev) => [...prev, "Processing results..."]);
 
       let replyText = aiData.reply?.trim() || "Done.";
       let leadsForDrafts: LeadDraft[] = Array.isArray(aiData.leads) ? dedupeLeads(aiData.leads as LeadDraft[]) : [];
@@ -306,6 +315,7 @@ export default function AIPage() {
       setMessages((prev) => [...prev, { role: "assistant", content: "Error: AI failed to respond." }]);
     } finally {
       setLoading(false);
+      setThinkingSteps([]);
     }
   };
 
@@ -425,7 +435,29 @@ export default function AIPage() {
                 </div>
               </div>
             ))}
-            {loading && <div className="text-sm text-gray-400">Thinking...</div>}
+            {loading && (
+              <div className="text-left">
+                <div className="inline-block max-w-[85%] rounded-2xl bg-white/10 px-4 py-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-300">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <span className="font-medium">Thinking</span>
+                  </div>
+                  <div className="mt-2 space-y-1.5">
+                    {thinkingSteps.map((step, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs text-gray-400">
+                        <svg className={`h-3 w-3 shrink-0 ${i === thinkingSteps.length - 1 ? "animate-pulse text-blue-400" : "text-emerald-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          {i < thinkingSteps.length - 1 ? <><path d="M20 6L9 17l-5-5" /></> : <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>}
+                        </svg>
+                        <span className={i === thinkingSteps.length - 1 ? "text-gray-300" : ""}>{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
         </div>
