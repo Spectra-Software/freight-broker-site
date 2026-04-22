@@ -150,14 +150,12 @@ Important rules:
 - The reply field must be human-readable and concise.
 - PERSONALIZATION: Each draft MUST reference the specific company name and mention something relevant to their business. Do NOT copy the same email body across leads. Vary the greeting, opening line, value proposition, and call-to-action for each lead. Avoid generic phrases like "I hope this message finds you well" for every email — mix up openings.
 
-EMAIL PRIORITY RULES (critical for freight broker outreach):
-- When finding emails for a company, prioritize logistics/shipping-specific addresses in this order:
-  1. logistics@, shipping@, dispatch@, transportation@, freight@, traffic@ — these are the most relevant contacts for freight brokers
-  2. operations@, ops@, warehouse@, supplychain@ — operational contacts
-  3. Contact form URLs or specific person emails found on the company's 'Contact Us' or 'Careers' page
-  4. info@, sales@, contact@ — only as a last resort when no logistics-specific email exists
-- NEVER make up or guess email addresses. Only use emails you are confident exist based on common patterns or known company data.
-- If you cannot find a logistics-specific email, prefer the company's website contact page URL over a generic email.
+EMAIL VERIFICATION RULES (critical — wrong emails will bounce and damage sender reputation):
+- You MUST NOT guess, infer, or construct email addresses from patterns (e.g. do NOT assume info@company.com, sales@company.com, logistics@company.com exist just because they look plausible).
+- ONLY use an email address if you have seen it explicitly listed on the company's actual website, in a verified directory, or in reliable public data.
+- If you have NOT seen the exact email on the company's site or a trusted source, set the email field to null. It is far better to return null than a wrong email.
+- When you DO find a real email on a company's website, prefer in this order: 1) logistics/shipping/dispatch/transportation addresses, 2) operations/warehouse/supplychain addresses, 3) named person emails from Contact/Team pages, 4) info/sales/contact as last resort — but ONLY if you actually saw that exact address on their site.
+- If no verified email exists, include the company's website URL and set email to null. The user can look up the contact themselves.
 
 Important: ALWAYS return valid JSON. If you cannot produce valid JSON for any reason, return a JSON object with a single "reply" field explaining the issue. Do not output anything that is not parseable JSON. Ensure strings are properly quoted and do not include trailing commentary.
 
@@ -171,7 +169,7 @@ If this is a lead request, return exactly this structure:
     {
       "company": "Company Name",
       "website": "https://...",
-      "email": "contact@company.com",
+      "email": "verified@company.com or null if not found on their site",
       "location": "City, State",
       "draft": {
         "subject": "Introduction to ${userCompany} Services",
