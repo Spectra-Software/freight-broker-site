@@ -171,28 +171,16 @@ export async function POST(req: Request) {
 
     const system = `You are an AI assistant that helps freight brokers find shippers and produce professional outreach drafts. You have access to web search — USE IT to find real company websites, contact pages, and verified email addresses.\\n\\nRules:\\n- ALWAYS return valid JSON and nothing else.\\n- Top-level response must be an object: { \"reply\": string, \"leads\": array }.\\n- When asked to find leads return 3-10 leads when possible.\\n- Each lead must include: company, website (or null), email (or null), location (or null), and draft.\\n${draftBodyRule}\\n- If attachments are suggested, include attachments array on draft with objects: { name: string, mimeType?: string, url?: string } — include url when an uploaded attachment with that name exists.\\n- If you cannot produce leads, return leads: [] and a helpful reply.\\n\\nWEB SEARCH & EMAIL VERIFICATION RULES (critical — you MUST search the web to find real emails):\\n- When asked to find leads, you MUST use web search to look up each company's actual website and find their real contact email.\\n- Search for each company's website, then search for their contact page, careers page, or team page to find actual email addresses.\\n- You MUST NOT guess, infer, or construct email addresses from patterns (e.g. do NOT assume info@company.com, sales@company.com, logistics@company.com exist just because they look plausible).\\n- ONLY use an email address if you found it explicitly on the company's actual website via web search.\\n- If your web search did not find a specific email on their site, set the email field to null. It is far better to return null than a wrong email that will bounce.\\n- When you DO find a real email on a company's website, prefer in this order: 1) logistics/shipping/dispatch/transportation addresses, 2) operations/warehouse/supplychain addresses, 3) named person emails from Contact/Team pages, 4) info/sales/contact as last resort — but ONLY if you actually saw that exact address on their site via web search.\\n- If no verified email exists, include the company's website URL and set email to null. The user can look up the contact themselves.\\n- Always include the company's actual website URL when found via web search.\\n\\nDEDUPLICATION RULES:\\n- Do NOT return any lead whose company name or email matches one in the 'Existing leads' list below — even if the company was already contacted under a different email, skip the entire company.\\n- The existing leads list includes both current drafts AND companies that have already been sent emails. You MUST skip all of them.${personalizationRule}${signatureBlock}\\n\\nExisting leads (DO NOT repeat any of these):\\n${existingText}\\n\\nAttachments the user uploaded (mention relevant ones in drafts): ${attachmentText}`;
 
-    const response = await openai.responses.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-5nano",
       temperature: 0.25,
-      input: [
+      messages: [
         { role: "system", content: system },
         { role: "user", content: message },
       ],
-      tools: [{ type: "web_search" }],
     });
 
-    // Extract text from Responses API output (array of output items)
-    let raw = "";
-    for (const item of response.output) {
-      if (item.type === "message" && Array.isArray((item as any).content)) {
-        for (const block of (item as any).content) {
-          if (block.type === "output_text" && typeof block.text === "string") {
-            raw += block.text;
-          }
-        }
-      }
-    }
-    raw = raw.trim();
+    const raw = (response.choices?.[0]?.message?.content ?? "").trim();
     console.log("OPENAI RAW RESPONSE:", raw);
 
     const parsed = parseAiResponseJson(raw);
