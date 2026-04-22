@@ -288,27 +288,30 @@ export default function AIPage() {
 
         const createRes = await fetch("/api/gmail/create-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ leads: incomingLeads }) });
         const createData: { drafts?: CreatedDraft[]; error?: string; createdCount?: number; skipped?: any[] } = await createRes.json();
-        if (!createRes.ok) { console.error("Draft creation failed:", createData); setMessages((prev) => [...prev, { role: "assistant", content: `Drafts were not saved: ${createData.error || createRes.statusText || "Unknown error"}` }]); return; }
-
-        console.log("/api/gmail/create-drafts response:", createData);
-        const createdDrafts: CreatedDraft[] = Array.isArray(createData.drafts) ? createData.drafts : [];
-        const createdCount = typeof createData.createdCount === "number" ? createData.createdCount : createdDrafts.length;
-        const skippedArr = Array.isArray(createData.skipped) ? createData.skipped : [];
-
-        setLastCreateStats({ createdCount, skippedCount: skippedArr.length, skippedReasons: skippedArr.map((s: any) => s.reason || "unknown") });
-
-        const summaryParts: string[] = [`Created ${createdCount} draft${createdCount === 1 ? "" : "s"}`];
-        if (skippedArr.length > 0) summaryParts.push(`Skipped ${skippedArr.length}`);
-        const summaryMsg = summaryParts.join(" — ");
-
-        if (skippedArr.length > 0) {
-          const reasons = skippedArr.map((s: any, i: number) => `${i + 1}. ${s.reason || "unknown"}`).join("; ");
-          setMessages((prev) => [...prev, { role: "assistant", content: `${summaryMsg}. Reasons: ${reasons}` }]);
+        if (!createRes.ok) {
+          console.error("Draft creation failed:", createData);
+          setMessages((prev) => [...prev, { role: "assistant", content: `Drafts were not saved: ${createData.error || createRes.statusText || "Unknown error"}` }]);
         } else {
-          setMessages((prev) => [...prev, { role: "assistant", content: summaryMsg }]);
-        }
+          console.log("/api/gmail/create-drafts response:", createData);
+          const createdDrafts: CreatedDraft[] = Array.isArray(createData.drafts) ? createData.drafts : [];
+          const createdCount = typeof createData.createdCount === "number" ? createData.createdCount : createdDrafts.length;
+          const skippedArr = Array.isArray(createData.skipped) ? createData.skipped : [];
 
-        if (createdDrafts.length > 0) setDrafts((prev) => mergeUniqueDrafts(prev, createdDrafts));
+          setLastCreateStats({ createdCount, skippedCount: skippedArr.length, skippedReasons: skippedArr.map((s: any) => s.reason || "unknown") });
+
+          const summaryParts: string[] = [`Created ${createdCount} draft${createdCount === 1 ? "" : "s"}`];
+          if (skippedArr.length > 0) summaryParts.push(`Skipped ${skippedArr.length}`);
+          const summaryMsg = summaryParts.join(" — ");
+
+          if (skippedArr.length > 0) {
+            const reasons = skippedArr.map((s: any, i: number) => `${i + 1}. ${s.reason || "unknown"}`).join("; ");
+            setMessages((prev) => [...prev, { role: "assistant", content: `${summaryMsg}. Reasons: ${reasons}` }]);
+          } else {
+            setMessages((prev) => [...prev, { role: "assistant", content: summaryMsg }]);
+          }
+
+          if (createdDrafts.length > 0) setDrafts((prev) => mergeUniqueDrafts(prev, createdDrafts));
+        }
       }
     } catch (err) {
       console.error(err);
