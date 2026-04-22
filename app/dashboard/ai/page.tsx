@@ -341,7 +341,6 @@ export default function AIPage() {
             ))}
           </div>
         </div>
-      </div>
 
       {/* Main chat area */}
       <div className="flex flex-1 flex-col">
