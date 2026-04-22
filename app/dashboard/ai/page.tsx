@@ -312,10 +312,11 @@ export default function AIPage() {
   const goToApprovals = () => router.push("/dashboard/inbox?tab=approval");
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] w-full gap-0">
+    <div className="flex h-[calc(100vh-6rem)] w-full gap-0 overflow-hidden">
       {/* Sidebar */}
-      {sidebarOpen && (
-        <div className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-black/30 p-3">
+      <div
+        className={`shrink-0 flex flex-col border-r border-white/10 bg-black/30 p-3 transition-[width,opacity] duration-300 ease-in-out overflow-hidden ${sidebarOpen ? "w-64 opacity-100" : "w-0 opacity-0 p-0 border-r-0"}`}
+      >
           <button onClick={createNewChat} className="mb-3 w-full rounded-xl bg-blue-500 px-3 py-2 text-sm font-medium text-white hover:bg-blue-600">
             + New Chat
           </button>
@@ -340,15 +341,17 @@ export default function AIPage() {
             ))}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Main chat area */}
       <div className="flex flex-1 flex-col">
         {/* Header bar */}
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white">
-              {sidebarOpen ? "◀" : "▶"}
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="rounded-lg p-1.5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-300 ${sidebarOpen ? "" : "rotate-180"}`}>
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
             </button>
             <h1 className="text-lg font-semibold text-white">AI Assistant</h1>
           </div>
