@@ -114,12 +114,35 @@ export default function AIPage() {
   const router = useRouter();
 
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = sessionStorage.getItem("ai-chat-messages");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [loading, setLoading] = useState(false);
-  const [uploadedAttachments, setUploadedAttachments] = useState<CreatedAttachment[]>([]);
+  const [uploadedAttachments, setUploadedAttachments] = useState<CreatedAttachment[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = sessionStorage.getItem("ai-chat-attachments");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
 
-  const [drafts, setDrafts] = useState<CreatedDraft[]>([]);
-  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<CreatedDraft[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = sessionStorage.getItem("ai-chat-drafts");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return sessionStorage.getItem("ai-chat-selectedDraft") || null;
+    } catch { return null; }
+  });
   const [lastCreateStats, setLastCreateStats] = useState<
     | { createdCount: number; skippedCount: number; skippedReasons: string[] }
     | null
@@ -143,6 +166,26 @@ export default function AIPage() {
         /* non-critical */ }
     })();
   }, []);
+
+  // Persist chat state to sessionStorage
+  useEffect(() => {
+    try { sessionStorage.setItem("ai-chat-messages", JSON.stringify(messages)); } catch {}
+  }, [messages]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem("ai-chat-drafts", JSON.stringify(drafts)); } catch {}
+  }, [drafts]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem("ai-chat-attachments", JSON.stringify(uploadedAttachments)); } catch {}
+  }, [uploadedAttachments]);
+
+  useEffect(() => {
+    try {
+      if (selectedDraftId) sessionStorage.setItem("ai-chat-selectedDraft", selectedDraftId);
+      else sessionStorage.removeItem("ai-chat-selectedDraft");
+    } catch {}
+  }, [selectedDraftId]);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -521,7 +564,7 @@ export default function AIPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_0.95fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_0.95fr] lg:h-[calc(100vh-8rem)]">
         <div className="flex flex-col rounded-3xl border border-white/10 bg-white/5 p-4 shadow-lg">
           <div className="h-[560px] overflow-y-auto space-y-3 rounded-2xl bg-black/20 p-4">
             {messages.length === 0 && (
@@ -615,8 +658,8 @@ export default function AIPage() {
           )}
         </div>
 
-        <div className="flex flex-col rounded-3xl border border-white/10 bg-white/5 p-4 shadow-lg">
-          <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
+        <div className="flex h-full flex-col rounded-3xl border border-white/10 bg-white/5 p-4 shadow-lg">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 pb-4">
             <div>
               <div className="text-sm text-gray-400">Drafts made</div>
               <div className="text-4xl font-bold text-white">{uniqueDrafts.length}</div>
@@ -630,9 +673,9 @@ export default function AIPage() {
             </button>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 shrink-0">
             <h2 className="text-sm font-semibold text-white">Company list</h2>
-            <div className="mt-3 max-h-56 overflow-y-auto space-y-2 pr-1">
+            <div className="mt-3 max-h-40 overflow-y-auto space-y-2 pr-1">
               {companyButtons.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-400">
                   No draft companies yet.
@@ -670,10 +713,10 @@ export default function AIPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex-1 overflow-y-auto">
-            <h2 className="text-sm font-semibold text-white">Draft previews</h2>
+          <div className="mt-4 min-h-0 flex-1 flex flex-col">
+            <h2 className="shrink-0 text-sm font-semibold text-white">Draft previews</h2>
 
-            <div className="mt-3 space-y-3 max-h-[48vh] overflow-y-auto pr-1">
+            <div className="mt-3 flex-1 min-h-0 space-y-3 overflow-y-auto pr-1">
               {uniqueDrafts.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-400">
                   Draft previews will appear here after the AI makes them.
@@ -722,7 +765,7 @@ export default function AIPage() {
           </div>
 
           {selectedDraft && (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div className="mt-4 shrink-0 rounded-2xl border border-white/10 bg-black/20 p-4">
               <div className="text-xs text-gray-400">Selected preview</div>
               <div className="mt-1 text-sm font-semibold text-white">
                 {selectedDraft.subject}
