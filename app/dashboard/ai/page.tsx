@@ -359,7 +359,7 @@ export default function AIPage() {
               className="rounded-xl border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white outline-none"
             >
               <option value="groq">Groq (Llama 3.3 70B)</option>
-              <option value="openai">OpenAI (GPT-5.4)</option>
+              <option value="openai">OpenAI (GPT-5nano)</option>
             </select>
             {uniqueDrafts.length > 0 && (
               <div className="relative">
