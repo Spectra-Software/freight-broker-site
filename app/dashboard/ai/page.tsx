@@ -113,6 +113,13 @@ function dedupeLeads(leads: LeadDraft[]) {
 export default function AIPage() {
   const router = useRouter();
 
+  const [provider, setProvider] = useState<"groq" | "openai">(() => {
+    if (typeof window === "undefined") return "groq";
+    try {
+      const saved = sessionStorage.getItem("ai-chat-provider");
+      return saved === "openai" ? "openai" : "groq";
+    } catch { return "groq"; }
+  });
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (typeof window === "undefined") return [];
@@ -186,6 +193,10 @@ export default function AIPage() {
       else sessionStorage.removeItem("ai-chat-selectedDraft");
     } catch {}
   }, [selectedDraftId]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem("ai-chat-provider", provider); } catch {}
+  }, [provider]);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -343,7 +354,8 @@ export default function AIPage() {
         })),
       ];
 
-      const aiRes = await fetch("/api/ai_v3", {
+      const aiEndpoint = provider === "openai" ? "/api/ai_openai" : "/api/ai_v3";
+      const aiRes = await fetch(aiEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -545,6 +557,16 @@ export default function AIPage() {
     <div className="min-h-[calc(100vh-6rem)] w-full">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">AI Assistant</h1>
+        <div className="flex items-center gap-3">
+          <select
+            value={provider}
+            onChange={(e) => setProvider(e.target.value as "groq" | "openai")}
+            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+          >
+            <option value="groq">Groq (Llama 3.3 70B)</option>
+            <option value="openai">OpenAI (GPT-5.4)</option>
+          </select>
+        </div>
         <div>
           <div className="text-sm text-gray-400">
             {uniqueDrafts.length} draft{uniqueDrafts.length === 1 ? "" : "s"} made
