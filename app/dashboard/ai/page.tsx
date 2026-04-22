@@ -658,7 +658,7 @@ export default function AIPage() {
           )}
         </div>
 
-        <div className="flex h-full flex-col rounded-3xl border border-white/10 bg-white/5 p-4 shadow-lg">
+        <div className="flex h-full min-h-0 flex-col rounded-3xl border border-white/10 bg-white/5 p-4 shadow-lg">
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 pb-4">
             <div>
               <div className="text-sm text-gray-400">Drafts made</div>
