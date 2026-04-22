@@ -144,15 +144,17 @@ export async function POST(req: Request) {
 
     if (!message) return NextResponse.json({ error: "No message provided" }, { status: 400 });
 
-    // Fetch user's company name for subject lines
+    // Fetch user's name and company name for drafts
     const session = await getServerSession(authOptions);
     let userCompany: string | null = null;
+    let userName: string | null = null;
     if (session?.user?.email) {
       const dbUser = await prisma.user.findUnique({
         where: { email: session.user.email },
-        select: { company: true },
+        select: { company: true, name: true },
       });
       userCompany = dbUser?.company ?? null;
+      userName = dbUser?.name ?? session.user.name ?? null;
     }
 
     if (!userCompany) {
@@ -177,7 +179,8 @@ export async function POST(req: Request) {
           .join(", ")
       : "None";
 
-    const draftBodyRule = `- draft must include subject and body.\n- Subject line rules (critical): Every subject line MUST include the user's company name \"${userCompany}\". Use one of these two formats:\n  1. \"Introduction to ${userCompany} Services\"\n  2. \"Backup Carrier Options - ${userCompany}\"\n  Choose the format that best fits the email content. If the email introduces the brokerage, use format 1. If the email is about backup carrier capacity, use format 2. Always include \"${userCompany}\" in the subject line. Do NOT use any other subject line format.\n- Body: greeting, 1-2 short paragraphs about carrier capacity/backup options, clear call to action, and end with \"Best regards\" on its own line. Do NOT include a signature block (name, title, phone, email) — the user's Gmail signature is appended automatically when the email is sent. Use paragraph breaks (\\n\\n).`;
+    const senderName = userName || "the sender";
+    const draftBodyRule = `- draft must include subject and body.\n- Subject line rules (critical): Every subject line MUST include the user's company name \"${userCompany}\". Use one of these two formats:\n  1. \"Introduction to ${userCompany} Services\"\n  2. \"Backup Carrier Options - ${userCompany}\"\n  Choose the format that best fits the email content. If the email introduces the brokerage, use format 1. If the email is about backup carrier capacity, use format 2. Always include \"${userCompany}\" in the subject line. Do NOT use any other subject line format.\n- Body: greeting, 1-2 short paragraphs about carrier capacity/backup options, clear call to action, and end with \"Best regards\" on its own line. Do NOT include a signature block (name, title, phone, email) — the user's Gmail signature is appended automatically when the email is sent. Use paragraph breaks (\\n\\n).\n- CRITICAL: The user's name is \"${senderName}\" and their company is \"${userCompany}\". You MUST use the user's actual name \"${senderName}\" in the email body — NEVER use [Your Name] or any placeholder. For example: \"My name is ${senderName}, and I represent ${userCompany}\".`;
 
     const personalizationRule = `\\n\\nPERSONALIZATION RULES (critical — every draft must be unique):\\n- Each draft MUST reference the specific company name and mention something relevant to their business or industry. Do NOT copy the same email body across leads.\\n- Vary the greeting, opening line, value proposition, and call-to-action for each lead.\\n- If you found info about the company (industry, services, location), reference it naturally in the email.\\n- Tone: professional, warm, concise. Avoid generic phrases like "I hope this message finds you well" for every email — mix up openings.`;
 
