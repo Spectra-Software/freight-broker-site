@@ -26,6 +26,11 @@ export default function QuoteALanePage() {
   const [estimatedRate, setEstimatedRate] = useState<number | null>(null);
   const [dieselPrice, setDieselPrice] = useState<number | null>(null);
 
+  // Profit Calculator state
+  const [profitRate, setProfitRate] = useState<string>("");
+  const [profitMiles, setProfitMiles] = useState<string>("");
+  const [profitFuelCost, setProfitFuelCost] = useState<string>("");
+
   const mapRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -250,6 +255,100 @@ export default function QuoteALanePage() {
           ) : (
             <div className="mt-2 text-sm text-gray-400">No result yet.</div>
           )}
+        </div>
+
+        {/* Profit Calculator */}
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
+          <h2 className="text-lg font-bold text-white">Profit Calculator</h2>
+          <p className="text-xs text-gray-400">Enter your rate, miles, and fuel cost to instantly see profitability.</p>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-xs text-gray-400">Rate ($)</label>
+              <input
+                type="number"
+                value={profitRate}
+                onChange={(e) => setProfitRate(e.target.value)}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm text-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">Miles</label>
+              <input
+                type="number"
+                value={profitMiles}
+                onChange={(e) => setProfitMiles(e.target.value)}
+                placeholder="0"
+                min="0"
+                step="1"
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm text-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">Fuel Cost ($)</label>
+              <input
+                type="number"
+                value={profitFuelCost}
+                onChange={(e) => setProfitFuelCost(e.target.value)}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                className="mt-1 w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm text-white"
+              />
+            </div>
+          </div>
+
+          {(() => {
+            const rate = parseFloat(profitRate) || 0;
+            const mi = parseFloat(profitMiles) || 0;
+            const fuel = parseFloat(profitFuelCost) || 0;
+            const netProfit = rate - fuel;
+            const profitPerMile = mi > 0 ? netProfit / mi : 0;
+            const fuelImpact = rate > 0 ? (fuel / rate) * 100 : 0;
+            const hasInput = profitRate || profitMiles || profitFuelCost;
+
+            if (!hasInput) return null;
+
+            const isProfit = netProfit >= 0;
+            return (
+              <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-400">Net Profit</span>
+                  <span className={`text-lg font-bold ${isProfit ? "text-emerald-400" : "text-rose-400"}`}>
+                    {isProfit ? "+" : ""}${netProfit.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-400">Profit / Mile</span>
+                  <span className={`text-sm font-medium ${profitPerMile >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                    ${profitPerMile.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-400">Fuel Impact</span>
+                  <span className="text-sm font-medium text-amber-400">
+                    {fuelImpact.toFixed(1)}% of rate
+                  </span>
+                </div>
+                {/* Visual fuel bar */}
+                <div className="mt-1">
+                  <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-amber-500/70 transition-all duration-300"
+                      style={{ width: `${Math.min(fuelImpact, 100)}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 flex justify-between text-[10px] text-gray-500">
+                    <span>Fuel: ${fuel.toFixed(2)}</span>
+                    <span>Revenue: ${rate.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
       </div>
