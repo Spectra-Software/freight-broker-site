@@ -201,10 +201,25 @@ export async function POST(req: Request) {
       }
     }
     raw = raw.trim();
-    console.log("OPENAI RAW RESPONSE:", raw);
+    console.log("OPENAI RAW RESPONSE (first 500 chars):", raw.slice(0, 500));
     console.log("OPENAI SEARCH STEPS:", JSON.stringify(searchSteps));
 
-    const parsed = parseAiResponseJson(raw);
+    // Try direct JSON.parse first — the model often returns clean JSON
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      const direct = JSON.parse(raw);
+      if (direct && typeof direct === "object" && !Array.isArray(direct)) {
+        parsed = direct as Record<string, unknown>;
+        console.log("OPENAI: direct JSON.parse succeeded");
+      }
+    } catch {
+      console.log("OPENAI: direct JSON.parse failed, trying parseAiResponseJson...");
+    }
+
+    if (!parsed) {
+      parsed = parseAiResponseJson(raw);
+    }
+
     if (parsed) {
       return NextResponse.json({
         reply: typeof parsed.reply === "string" ? parsed.reply : "Done.",
@@ -213,6 +228,7 @@ export async function POST(req: Request) {
       });
     }
 
+    console.error("OPENAI: all parsing failed, returning raw text as reply");
     return NextResponse.json({ reply: raw || "No response from AI", leads: [], searchSteps });
   } catch (err: unknown) {
     console.error("OPENAI ERROR:", err);
