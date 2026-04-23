@@ -27,6 +27,7 @@ model User {
 
   applications  Application[]
   emails        Email[]
+  leads         Lead[]
 }
 
 model Invite {
@@ -137,4 +138,32 @@ enum EmailStatus {
 enum EmailType {
   INBOUND
   OUTBOUND
+}
+
+enum LeadStatus {
+  COLD
+  WARM
+  ONBOARDED
+}
+
+model Lead {
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id])
+
+  company       String
+  contactName   String?
+  phone         String?
+  email         String?
+  commodity     String?
+  status        LeadStatus @default(COLD)
+
+  lastCalledAt  DateTime?
+  callbackAt    DateTime?
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
