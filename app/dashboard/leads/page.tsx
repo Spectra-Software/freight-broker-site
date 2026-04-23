@@ -49,7 +49,7 @@ const emptyForm = {
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<LeadStatus | "ALL">("ALL");
+  const [filter, setFilter] = useState<LeadStatus | "ALL" | "PROSPECTS">("ALL");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -80,13 +80,14 @@ export default function LeadsPage() {
     }
   }, [form.lastCalledAt]);
 
-  const filtered = filter === "ALL" ? leads : leads.filter((l) => l.status === filter);
+  const filtered = filter === "PROSPECTS" ? leads.filter((l) => !l.email) : filter === "ALL" ? leads : leads.filter((l) => l.status === filter);
 
   const counts = {
     ALL: leads.length,
     COLD: leads.filter((l) => l.status === "COLD").length,
     WARM: leads.filter((l) => l.status === "WARM").length,
     ONBOARDED: leads.filter((l) => l.status === "ONBOARDED").length,
+    PROSPECTS: leads.filter((l) => !l.email).length,
   };
 
   async function handleSubmit(e: React.FormEvent) {
@@ -291,8 +292,8 @@ export default function LeadsPage() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2">
-        {(["ALL", "COLD", "WARM", "ONBOARDED"] as const).map((s) => {
-          const cfg = s === "ALL" ? { label: "All", color: "text-gray-300", bg: "bg-white/10 border-white/10" } : STATUS_CONFIG[s];
+        {(["ALL", "COLD", "WARM", "ONBOARDED", "PROSPECTS"] as const).map((s) => {
+          const cfg = s === "ALL" ? { label: "All", color: "text-gray-300", bg: "bg-white/10 border-white/10" } : s === "PROSPECTS" ? { label: "Prospects", color: "text-purple-400", bg: "bg-purple-500/15 border-purple-500/30" } : STATUS_CONFIG[s];
           const isActive = filter === s;
           return (
             <button
@@ -302,7 +303,7 @@ export default function LeadsPage() {
                 isActive ? `${cfg.bg} ${cfg.color}` : "border-transparent text-gray-500 hover:text-gray-300"
               }`}
             >
-              {s === "ALL" ? "All" : cfg.label} ({counts[s]})
+              {cfg.label} ({counts[s]})
             </button>
           );
         })}

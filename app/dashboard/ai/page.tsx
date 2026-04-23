@@ -17,7 +17,10 @@ type LeadDraft = {
   company?: string;
   website?: string;
   email?: string;
+  emails?: string[];
+  phone?: string;
   location?: string;
+  commodity?: string;
   draft?: { subject?: string; body?: string; attachments?: DraftAttachment[] };
   attachments?: DraftAttachment[];
 };
@@ -273,10 +276,35 @@ export default function AIPage() {
         }
       }
 
-      if (incomingLeads.length > 0) {
-        setThinkingSteps((prev) => [...prev, `Creating ${incomingLeads.length} draft${incomingLeads.length === 1 ? "" : "s"}...`]);
+      // Separate leads with emails (drafts) from prospects (no email)
+      const leadsWithEmails = incomingLeads.filter((l) => l.email || (Array.isArray(l.emails) && l.emails.length > 0));
+      const prospects = incomingLeads.filter((l) => !l.email && !(Array.isArray(l.emails) && l.emails.length > 0));
 
-        const optimisticDrafts: CreatedDraft[] = incomingLeads.map((lead, idx) => ({
+      // Handle leads with multiple emails — ask user to pick
+      const multiEmailLeads = leadsWithEmails.filter((l) => Array.isArray(l.emails) && l.emails.length > 1);
+      const singleEmailLeads = leadsWithEmails.filter((l) => !Array.isArray(l.emails) || l.emails.length <= 1);
+
+      // For single-email leads, set email from emails array if needed
+      for (const lead of singleEmailLeads) {
+        if (!lead.email && Array.isArray(lead.emails) && lead.emails.length === 1) {
+          lead.email = lead.emails[0];
+        }
+      }
+
+      // Show multi-email picker message
+      if (multiEmailLeads.length > 0) {
+        const lines = multiEmailLeads.map((l) => {
+          const opts = (l.emails || []).map((e, i) => `${i + 1}. ${e}`).join("  ");
+          return `**${l.company}** — Multiple emails found: ${opts}. Reply the number to use.`;
+        });
+        setMessages((prev) => [...prev, { role: "assistant", content: `I found multiple emails for some leads. Please choose which to use:\n\n${lines.join("\n\n")}` }]);
+      }
+
+      // Create drafts for single-email leads
+      if (singleEmailLeads.length > 0) {
+        setThinkingSteps((prev) => [...prev, `Creating ${singleEmailLeads.length} draft${singleEmailLeads.length === 1 ? "" : "s"}...`]);
+
+        const optimisticDrafts: CreatedDraft[] = singleEmailLeads.map((lead, idx) => ({
           id: `optimistic-${Date.now()}-${idx}`, to: lead.email || "", from: lead.company || null,
           subject: lead.draft?.subject || "", body: lead.draft?.body || "", snippet: (lead.draft?.body || lead.draft?.subject || "").slice(0, 180),
           company: lead.company || null, website: lead.website || null, location: lead.location || null,
@@ -286,10 +314,10 @@ export default function AIPage() {
 
         setDrafts((prev) => mergeUniqueDrafts(prev, optimisticDrafts));
         setLastCreateStats({ createdCount: optimisticDrafts.length, skippedCount: 0, skippedReasons: [] });
-        console.log("CREATE DRAFTS PAYLOAD:", { leads: incomingLeads });
+        console.log("CREATE DRAFTS PAYLOAD:", { leads: singleEmailLeads });
 
         try {
-          const createRes = await fetch("/api/gmail/create-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ leads: incomingLeads }) });
+          const createRes = await fetch("/api/gmail/create-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ leads: singleEmailLeads }) });
           const createData: { drafts?: CreatedDraft[]; error?: string; createdCount?: number; skipped?: any[] } = await createRes.json();
           if (!createRes.ok) {
             console.error("Draft creation failed:", createData);
@@ -319,7 +347,33 @@ export default function AIPage() {
           console.error("Draft creation network error:", draftErr);
           setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Failed to save drafts to server. The AI response was received but drafts were not persisted." }]);
         }
-      } else {
+      }
+
+      // Save prospects (no email) to Leads page
+      if (prospects.length > 0) {
+        setThinkingSteps((prev) => [...prev, `Saving ${prospects.length} prospect${prospects.length === 1 ? "" : "s"}...`]);
+        try {
+          for (const p of prospects) {
+            await fetch("/api/leads", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                company: p.company,
+                contactName: null,
+                phone: p.phone || null,
+                email: null,
+                commodity: p.commodity || null,
+                status: "COLD",
+              }),
+            });
+          }
+          setMessages((prev) => [...prev, { role: "assistant", content: `📋 Saved ${prospects.length} prospect${prospects.length === 1 ? "" : "s"} to the Leads page (no email found — added as Cold leads with phone numbers for follow-up).` }]);
+        } catch (prospectErr) {
+          console.error("Prospect save error:", prospectErr);
+        }
+      }
+
+      if (singleEmailLeads.length === 0 && multiEmailLeads.length === 0 && prospects.length === 0) {
         setMessages((prev) => [...prev, { role: "assistant", content: "No leads with drafts were found. Try being more specific in your request." }]);
       }
     } catch (err) {
