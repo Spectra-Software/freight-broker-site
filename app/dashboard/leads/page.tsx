@@ -82,7 +82,13 @@ export default function LeadsPage() {
     }
   }, [form.lastCalledAt]);
 
-  const filtered = filter === "PROSPECTS" ? leads.filter((l) => !l.email) : filter === "ALL" ? leads : leads.filter((l) => l.status === filter);
+  const filtered = filter === "PROSPECTS"
+    ? [...leads].sort((a, b) => {
+        // No-email prospects first, then DRAFT_CREATED, then DRAFT_SENT
+        const rank = (l: Lead) => !l.email ? 0 : l.status === "DRAFT_CREATED" ? 1 : l.status === "DRAFT_SENT" ? 2 : 3;
+        return rank(a) - rank(b);
+      }).filter((l) => !l.email || l.status === "DRAFT_CREATED" || l.status === "DRAFT_SENT")
+    : filter === "ALL" ? leads : leads.filter((l) => l.status === filter);
 
   const counts = {
     ALL: leads.length,
@@ -91,7 +97,7 @@ export default function LeadsPage() {
     ONBOARDED: leads.filter((l) => l.status === "ONBOARDED").length,
     DRAFT_CREATED: leads.filter((l) => l.status === "DRAFT_CREATED").length,
     DRAFT_SENT: leads.filter((l) => l.status === "DRAFT_SENT").length,
-    PROSPECTS: leads.filter((l) => !l.email).length,
+    PROSPECTS: leads.filter((l) => !l.email || l.status === "DRAFT_CREATED" || l.status === "DRAFT_SENT").length,
   };
 
   async function handleSubmit(e: React.FormEvent) {
