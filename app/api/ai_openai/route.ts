@@ -172,11 +172,12 @@ export async function POST(req: Request) {
 
     const signatureBlock = "";
 
-    const system = `You are an AI assistant that helps freight brokers find shippers and produce professional outreach drafts. You have access to web search — USE IT to find real company websites, contact pages, and verified email addresses.\\n\\nRules:\\n- ALWAYS return valid JSON and nothing else.\\n- Top-level response must be an object: { \"reply\": string, \"leads\": array }.\\n- When asked to find leads return 3-10 leads when possible.\\n- Each lead must include: company, website (or null), email (or null), location (or null), and draft.\\n${draftBodyRule}\\n- If attachments are suggested, include attachments array on draft with objects: { name: string, mimeType?: string, url?: string } — include url when an uploaded attachment with that name exists.\\n- If you cannot produce leads, return leads: [] and a helpful reply.\\n\\nWEB SEARCH & EMAIL VERIFICATION RULES (critical — you MUST search the web to find real emails):\\n- When asked to find leads, you MUST use web search to look up each company's actual website and find their real contact email.\\n- Search for each company's website, then search for their contact page, careers page, or team page to find actual email addresses.\\n- You MUST NOT guess, infer, or construct email addresses from patterns (e.g. do NOT assume info@company.com, sales@company.com, logistics@company.com exist just because they look plausible).\\n- ONLY use an email address if you found it explicitly on the company's actual website via web search.\\n- If your web search did not find a specific email on their site, set the email field to null. It is far better to return null than a wrong email that will bounce.\\n- When you DO find a real email on a company's website, prefer in this order: 1) logistics/shipping/dispatch/transportation addresses, 2) operations/warehouse/supplychain addresses, 3) named person emails from Contact/Team pages, 4) info/sales/contact as last resort — but ONLY if you actually saw that exact address on their site via web search.\\n- If no verified email exists, include the company's website URL and set email to null. The user can look up the contact themselves.\\n- Always include the company's actual website URL when found via web search.\\n\\nDEDUPLICATION RULES:\\n- Do NOT return any lead whose company name or email matches one in the 'Existing leads' list below — even if the company was already contacted under a different email, skip the entire company.\\n- The existing leads list includes both current drafts AND companies that have already been sent emails. You MUST skip all of them.${personalizationRule}${signatureBlock}\\n\\nExisting leads (DO NOT repeat any of these):\\n${existingText}\\n\\nAttachments the user uploaded (mention relevant ones in drafts): ${attachmentText}`;
+    const system = `You are an AI assistant that helps freight brokers find shippers and produce professional outreach drafts. You have access to web search — USE IT to find real company websites, contact pages, and verified email addresses.\\n\\nRules:\\n- ALWAYS return valid JSON and nothing else.\\n- Top-level response must be an object: { \"reply\": string, \"leads\": array }.\\n- When asked to find leads return 3-5 leads when possible. Fewer high-quality leads are better than many incomplete ones.\\n- Each lead must include: company, website (or null), email (or null), location (or null), and draft.\\n${draftBodyRule}\\n- If attachments are suggested, include attachments array on draft with objects: { name: string, mimeType?: string, url?: string } — include url when an uploaded attachment with that name exists.\\n- If you cannot produce leads, return leads: [] and a helpful reply.\\n\\nWEB SEARCH & EMAIL VERIFICATION RULES (critical — you MUST search the web to find real emails):\\n- When asked to find leads, you MUST use web search to look up each company's actual website and find their real contact email.\\n- Search for each company's website, then search for their contact page, careers page, or team page to find actual email addresses.\\n- You MUST NOT guess, infer, or construct email addresses from patterns (e.g. do NOT assume info@company.com, sales@company.com, logistics@company.com exist just because they look plausible).\\n- ONLY use an email address if you found it explicitly on the company's actual website via web search.\\n- If your web search did not find a specific email on their site, set the email field to null. It is far better to return null than a wrong email that will bounce.\\n- When you DO find a real email on a company's website, prefer in this order: 1) logistics/shipping/dispatch/transportation addresses, 2) operations/warehouse/supplychain addresses, 3) named person emails from Contact/Team pages, 4) info/sales/contact as last resort — but ONLY if you actually saw that exact address on their site via web search.\\n- If no verified email exists, include the company's website URL and set email to null. The user can look up the contact themselves.\\n- Always include the company's actual website URL when found via web search.\\n\\nDEDUPLICATION RULES:\\n- Do NOT return any lead whose company name or email matches one in the 'Existing leads' list below — even if the company was already contacted under a different email, skip the entire company.\\n- The existing leads list includes both current drafts AND companies that have already been sent emails. You MUST skip all of them.${personalizationRule}${signatureBlock}\\n\\nExisting leads (DO NOT repeat any of these):\\n${existingText}\\n\\nAttachments the user uploaded (mention relevant ones in drafts): ${attachmentText}`;
 
     const response = await openai.responses.create({
       model: "gpt-4.1-mini",
       temperature: 0.25,
+      max_output_tokens: 16000,
       input: [
         { role: "system", content: system },
         { role: "user", content: message },
@@ -204,20 +205,48 @@ export async function POST(req: Request) {
     console.log("OPENAI RAW RESPONSE (first 500 chars):", raw.slice(0, 500));
     console.log("OPENAI SEARCH STEPS:", JSON.stringify(searchSteps));
 
-    // Try direct JSON.parse first — the model often returns clean JSON
+    // Try parsing — escape raw newlines first since the model often puts literal \n in JSON strings
     let parsed: Record<string, unknown> | null = null;
+    const escaped = escapeRawNewlinesInJsonStrings(raw);
     try {
-      const direct = JSON.parse(raw);
+      const direct = JSON.parse(escaped);
       if (direct && typeof direct === "object" && !Array.isArray(direct)) {
         parsed = direct as Record<string, unknown>;
         console.log("OPENAI: direct JSON.parse succeeded");
       }
-    } catch {
-      console.log("OPENAI: direct JSON.parse failed, trying parseAiResponseJson...");
+    } catch (e) {
+      console.log("OPENAI: direct JSON.parse failed:", e instanceof Error ? e.message : String(e));
     }
 
     if (!parsed) {
       parsed = parseAiResponseJson(raw);
+      if (parsed) console.log("OPENAI: parseAiResponseJson succeeded");
+    }
+
+    // Last resort: try to extract just the leads array with regex if JSON is truncated
+    if (!parsed && raw.includes('"leads"')) {
+      console.log("OPENAI: trying truncated JSON recovery...");
+      try {
+        const leadsMatch = raw.match(/"leads"\s*:\s*\[/);
+        if (leadsMatch) {
+          // Find the leads array start and try to parse individual lead objects
+          const leadsStart = raw.indexOf(leadsMatch[0]);
+          const leadsJson = raw.slice(leadsStart + leadsMatch[0].length - 1);
+          // Try to close the array manually
+          let partial = leadsJson;
+          const lastBrace = partial.lastIndexOf('}');
+          if (lastBrace > 0) {
+            partial = partial.slice(0, lastBrace + 1) + ']';
+            const leadsArr = JSON.parse(escapeRawNewlinesInJsonStrings(partial));
+            if (Array.isArray(leadsArr) && leadsArr.length > 0) {
+              parsed = { reply: `Found ${leadsArr.length} leads (response was partially recovered).`, leads: leadsArr };
+              console.log("OPENAI: truncated recovery succeeded, found", leadsArr.length, "leads");
+            }
+          }
+        }
+      } catch (e2) {
+        console.log("OPENAI: truncated recovery failed:", e2 instanceof Error ? e2.message : String(e2));
+      }
     }
 
     if (parsed) {
