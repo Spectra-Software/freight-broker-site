@@ -158,23 +158,6 @@ export default function LeadsPage() {
     }
   }
 
-  async function cycleStatus(lead: Lead) {
-    const order: LeadStatus[] = ["COLD", "WARM", "ONBOARDED"];
-    const next = order[(order.indexOf(lead.status) + 1) % order.length];
-    try {
-      const res = await fetch("/api/leads", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: lead.id, status: next }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLeads((prev) => prev.map((l) => (l.id === lead.id ? data.lead : l)));
-      }
-    } catch (err) {
-      console.error("Status update error:", err);
-    }
-  }
 
   if (loading) {
     return (
@@ -359,13 +342,27 @@ export default function LeadsPage() {
                     <td className="px-4 py-3 text-gray-300">{lead.email || "—"}</td>
                     <td className="px-4 py-3 text-gray-300">{lead.commodity || "—"}</td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => cycleStatus(lead)}
-                        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.color} transition hover:opacity-80`}
-                        title="Click to cycle status"
+                      <select
+                        value={lead.status}
+                        onChange={(e) => {
+                          const next = e.target.value as LeadStatus;
+                          fetch("/api/leads", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ id: lead.id, status: next }),
+                          }).then(async (res) => {
+                            if (res.ok) {
+                              const data = await res.json();
+                              setLeads((prev) => prev.map((l) => (l.id === lead.id ? data.lead : l)));
+                            }
+                          });
+                        }}
+                        className={`rounded-full border px-2.5 py-0.5 text-xs font-medium outline-none ${cfg.bg} ${cfg.color} cursor-pointer appearance-none text-center`}
                       >
-                        {cfg.label}
-                      </button>
+                        <option value="COLD">Cold</option>
+                        <option value="WARM">Warm</option>
+                        <option value="ONBOARDED">Onboarded</option>
+                      </select>
                     </td>
                     <td className="px-4 py-3 text-gray-300">{formatDate(lead.lastCalledAt)}</td>
                     <td className="px-4 py-3">
