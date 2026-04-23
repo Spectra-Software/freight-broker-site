@@ -95,6 +95,20 @@ export async function POST(req: Request) {
 
         await prisma.email.update({ where: { id: draft.id }, data: { status: "SENT", sentAt: new Date() } });
 
+        // Update matching Lead status to DRAFT_SENT
+        if (draft.company) {
+          try {
+            const lead = await prisma.lead.findFirst({
+              where: { userId: draft.userId, company: draft.company, status: "DRAFT_CREATED" },
+            });
+            if (lead) {
+              await prisma.lead.update({ where: { id: lead.id }, data: { status: "DRAFT_SENT" } });
+            }
+          } catch (leadErr) {
+            console.error("Failed to update lead status to DRAFT_SENT:", leadErr);
+          }
+        }
+
         // Auto-create a follow-up email scheduled 14 days from now
         const followUpDate = new Date();
         followUpDate.setDate(followUpDate.getDate() + 14);

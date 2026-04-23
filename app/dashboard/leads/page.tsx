@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 
-type LeadStatus = "COLD" | "WARM" | "ONBOARDED";
+type LeadStatus = "COLD" | "WARM" | "ONBOARDED" | "DRAFT_CREATED" | "DRAFT_SENT";
 
 interface Lead {
   id: string;
@@ -22,6 +22,8 @@ const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: stri
   COLD: { label: "Cold", color: "text-blue-400", bg: "bg-blue-500/15 border-blue-500/30" },
   WARM: { label: "Warm", color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/30" },
   ONBOARDED: { label: "Onboarded", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30" },
+  DRAFT_CREATED: { label: "Draft Created", color: "text-cyan-400", bg: "bg-cyan-500/15 border-cyan-500/30" },
+  DRAFT_SENT: { label: "Draft Sent", color: "text-green-400", bg: "bg-green-500/15 border-green-500/30" },
 };
 
 function addDays(dateStr: string, days: number): string {
@@ -87,6 +89,8 @@ export default function LeadsPage() {
     COLD: leads.filter((l) => l.status === "COLD").length,
     WARM: leads.filter((l) => l.status === "WARM").length,
     ONBOARDED: leads.filter((l) => l.status === "ONBOARDED").length,
+    DRAFT_CREATED: leads.filter((l) => l.status === "DRAFT_CREATED").length,
+    DRAFT_SENT: leads.filter((l) => l.status === "DRAFT_SENT").length,
     PROSPECTS: leads.filter((l) => !l.email).length,
   };
 
@@ -249,6 +253,8 @@ export default function LeadsPage() {
               >
                 <option value="COLD">Cold</option>
                 <option value="WARM">Warm</option>
+                <option value="DRAFT_CREATED">Draft Created</option>
+                <option value="DRAFT_SENT">Draft Sent</option>
                 <option value="ONBOARDED">Onboarded</option>
               </select>
             </div>
@@ -292,7 +298,7 @@ export default function LeadsPage() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2">
-        {(["ALL", "COLD", "WARM", "ONBOARDED", "PROSPECTS"] as const).map((s) => {
+        {(["ALL", "COLD", "WARM", "DRAFT_CREATED", "DRAFT_SENT", "ONBOARDED", "PROSPECTS"] as const).map((s) => {
           const cfg = s === "ALL" ? { label: "All", color: "text-gray-300", bg: "bg-white/10 border-white/10" } : s === "PROSPECTS" ? { label: "Prospects", color: "text-purple-400", bg: "bg-purple-500/15 border-purple-500/30" } : STATUS_CONFIG[s];
           const isActive = filter === s;
           return (
@@ -362,6 +368,8 @@ export default function LeadsPage() {
                       >
                         <option value="COLD">Cold</option>
                         <option value="WARM">Warm</option>
+                        <option value="DRAFT_CREATED">Draft Created</option>
+                        <option value="DRAFT_SENT">Draft Sent</option>
                         <option value="ONBOARDED">Onboarded</option>
                       </select>
                     </td>

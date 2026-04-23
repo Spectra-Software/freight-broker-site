@@ -144,6 +144,8 @@ enum LeadStatus {
   COLD
   WARM
   ONBOARDED
+  DRAFT_CREATED
+  DRAFT_SENT
 }
 
 model Lead {

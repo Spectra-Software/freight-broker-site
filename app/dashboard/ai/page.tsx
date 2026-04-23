@@ -300,6 +300,30 @@ export default function AIPage() {
         setMessages((prev) => [...prev, { role: "assistant", content: `I found multiple emails for some leads. Please choose which to use:\n\n${lines.join("\n\n")}` }]);
       }
 
+      // Save ALL leads to the Leads page
+      if (incomingLeads.length > 0) {
+        setThinkingSteps((prev) => [...prev, `Saving ${incomingLeads.length} lead${incomingLeads.length === 1 ? "" : "s"} to Leads page...`]);
+        try {
+          for (const lead of incomingLeads) {
+            const hasEmail = lead.email || (Array.isArray(lead.emails) && lead.emails.length > 0);
+            await fetch("/api/leads", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                company: lead.company,
+                contactName: null,
+                phone: lead.phone || null,
+                email: hasEmail ? (lead.email || (lead.emails || [])[0]) : null,
+                commodity: lead.commodity || null,
+                status: hasEmail ? "DRAFT_CREATED" : "COLD",
+              }),
+            });
+          }
+        } catch (leadErr) {
+          console.error("Lead save error:", leadErr);
+        }
+      }
+
       // Create drafts for single-email leads
       if (singleEmailLeads.length > 0) {
         setThinkingSteps((prev) => [...prev, `Creating ${singleEmailLeads.length} draft${singleEmailLeads.length === 1 ? "" : "s"}...`]);
@@ -349,28 +373,9 @@ export default function AIPage() {
         }
       }
 
-      // Save prospects (no email) to Leads page
+      // Message for prospects (no email)
       if (prospects.length > 0) {
-        setThinkingSteps((prev) => [...prev, `Saving ${prospects.length} prospect${prospects.length === 1 ? "" : "s"}...`]);
-        try {
-          for (const p of prospects) {
-            await fetch("/api/leads", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                company: p.company,
-                contactName: null,
-                phone: p.phone || null,
-                email: null,
-                commodity: p.commodity || null,
-                status: "COLD",
-              }),
-            });
-          }
-          setMessages((prev) => [...prev, { role: "assistant", content: `📋 Saved ${prospects.length} prospect${prospects.length === 1 ? "" : "s"} to the Leads page (no email found — added as Cold leads with phone numbers for follow-up).` }]);
-        } catch (prospectErr) {
-          console.error("Prospect save error:", prospectErr);
-        }
+        setMessages((prev) => [...prev, { role: "assistant", content: `📋 Saved ${prospects.length} prospect${prospects.length === 1 ? "" : "s"} to the Leads page (no email found — added as Cold leads with phone numbers for follow-up).` }]);
       }
 
       if (singleEmailLeads.length === 0 && multiEmailLeads.length === 0 && prospects.length === 0) {
