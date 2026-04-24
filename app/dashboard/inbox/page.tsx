@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type Attachment = {
@@ -137,6 +137,124 @@ function getTabFromSearch(value: string | null): TabKey {
   if (value === "approval") return "approval";
   if (value === "followUp") return "followUp";
   return "inbox";
+}
+
+function EmailIframe({
+  html,
+  attachments,
+  showFollowUp,
+  scheduledAt,
+}: {
+  html: string;
+  attachments?: Attachment[];
+  showFollowUp: boolean;
+  scheduledAt?: string;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [iframeHeight, setIframeHeight] = useState(200);
+
+  const baseStyles = `
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #d1d5db;
+        background: transparent;
+        word-break: break-word;
+        overflow-wrap: break-word;
+      }
+      a { color: #818cf8; text-decoration: underline; }
+      a:hover { color: #a5b4fc; }
+      img { max-width: 100%; height: auto; border-radius: 8px; }
+      video { max-width: 100%; border-radius: 8px; }
+      iframe { max-width: 100%; }
+      table { table-layout: fixed; width: 100% !important; max-width: 100% !important; overflow: hidden; }
+      td, th { word-break: break-word; overflow-wrap: break-word; }
+      p { margin: 0 0 12px; }
+      blockquote { border-left: 2px solid rgba(99,102,241,0.3); padding-left: 16px; color: #9ca3af; margin: 12px 0; }
+      pre { overflow-x: auto; max-width: 100%; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; }
+      h1, h2, h3 { font-size: 16px; font-weight: 600; margin: 16px 0 8px; }
+      ul, ol { margin: 0 0 12px; padding-left: 24px; }
+      li { margin-bottom: 4px; }
+    </style>
+  `;
+
+  const srcDoc = `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyles}</head><body>${html}</body></html>`;
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const resizeObserver = new MutationObserver(() => {
+      try {
+        const h = iframe.contentDocument?.body?.scrollHeight;
+        if (h && h > 0) setIframeHeight(h + 48);
+      } catch {}
+    });
+
+    const onLoad = () => {
+      try {
+        const h = iframe.contentDocument?.body?.scrollHeight;
+        if (h && h > 0) setIframeHeight(h + 48);
+        resizeObserver.observe(iframe.contentDocument!.body, { childList: true, subtree: true, attributes: true });
+      } catch {}
+    };
+
+    iframe.addEventListener("load", onLoad);
+    return () => {
+      iframe.removeEventListener("load", onLoad);
+      resizeObserver.disconnect();
+    };
+  }, [srcDoc]);
+
+  return (
+    <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      <iframe
+        ref={iframeRef}
+        srcDoc={srcDoc}
+        sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        frameBorder="0"
+        width="100%"
+        height={iframeHeight}
+        style={{ minHeight: 200, border: "none", display: "block" }}
+      />
+
+      {attachments?.length ? (
+        <div className="px-6 pt-4 border-t border-white/[0.06]">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">
+            {attachments.length} attachment{attachments.length !== 1 ? "s" : ""}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((file: Attachment) => (
+              <a
+                key={file.name}
+                href={file.url || "#"}
+                target={file.url ? "_blank" : undefined}
+                rel={file.url ? "noreferrer" : undefined}
+                className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-gray-300 hover:bg-white/[0.06] hover:text-white transition"
+              >
+                <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                {file.name}
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {showFollowUp && scheduledAt ? (
+        <div className="px-6 pt-4 border-t border-white/[0.06] flex items-center gap-3">
+          <CountdownBadge scheduledAt={scheduledAt} />
+          <span className="text-xs text-gray-500">
+            Scheduled: {formatFullDate(scheduledAt)}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export default function InboxPage() {
@@ -654,46 +772,13 @@ export default function InboxPage() {
                 </div>
               </div>
 
-              {/* Email body */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-4">
-                <div
-                  className="email-body text-sm text-gray-300 leading-relaxed max-w-none overflow-hidden break-words [&_a]:text-indigo-400 [&_a]:underline [&_a:hover]:text-indigo-300 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_table]:max-w-full [&_table]:overflow-hidden [&_table]:block [&_td]:break-words [&_th]:break-words [&_div]:max-w-full [&_div]:overflow-hidden [&_span]:break-words [&_p]:mb-3 [&_p]:break-words [&_ul]:mb-3 [&_ol]:mb-3 [&_li]:mb-1 [&_h1]:text-base [&_h2]:text-base [&_h3]:text-base [&_blockquote]:border-l-2 [&_blockquote]:border-indigo-500/30 [&_blockquote]:pl-4 [&_blockquote]:text-gray-400 [&_pre]:overflow-x-auto [&_pre]:max-w-full"
-                  dangerouslySetInnerHTML={{
-                    __html: selectedEmail.body || (selectedEmail.snippet ? `<p>${selectedEmail.snippet}</p>` : "<p>No content available.</p>"),
-                  }}
-                />
-
-                {selectedEmail.attachments?.length ? (
-                  <div className="mt-6 pt-4 border-t border-white/[0.06]">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">
-                      {selectedEmail.attachments.length} attachment{selectedEmail.attachments.length !== 1 ? "s" : ""}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedEmail.attachments.map((file: Attachment) => (
-                        <a
-                          key={file.name}
-                          href={file.url || "#"}
-                          target={file.url ? "_blank" : undefined}
-                          rel={file.url ? "noreferrer" : undefined}
-                          className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-gray-300 hover:bg-white/[0.06] hover:text-white transition"
-                        >
-                          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                          {file.name}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {activeTab === "followUp" && selectedEmail.scheduledAt ? (
-                  <div className="mt-6 pt-4 border-t border-white/[0.06] flex items-center gap-3">
-                    <CountdownBadge scheduledAt={selectedEmail.scheduledAt} />
-                    <span className="text-xs text-gray-500">
-                      Scheduled: {formatFullDate(selectedEmail.scheduledAt)}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
+              {/* Email body — rendered in a sandboxed iframe like Gmail */}
+              <EmailIframe
+                html={selectedEmail.body || (selectedEmail.snippet ? `<p>${selectedEmail.snippet}</p>` : "<p>No content available.</p>")}
+                attachments={selectedEmail.attachments}
+                showFollowUp={activeTab === "followUp"}
+                scheduledAt={selectedEmail.scheduledAt}
+              />
 
               {/* Action bar */}
               <div className="flex items-center gap-2 border-t border-white/[0.06] px-6 py-3">
