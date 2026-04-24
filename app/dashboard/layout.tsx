@@ -72,41 +72,45 @@ export default function DashboardLayout({
     "U";
 
   return (
-    <div className="relative flex min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white overflow-hidden">
+    <div className="relative flex min-h-screen bg-[#05060A] text-white overflow-hidden">
       <AnimatedBackground />
 
       <div className="relative z-10 flex w-full">
         {/* SIDEBAR */}
-        <aside className="w-64 p-6 flex flex-col justify-between border-r border-white/10 bg-white/5 backdrop-blur-xl">
+        <aside className="w-64 p-6 flex flex-col justify-between border-r border-white/[0.06] bg-white/[0.02] backdrop-blur-2xl">
           <div>
-            <motion.h1
+            <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-xl font-bold mb-10"
+              className="flex items-center gap-3 mb-10"
             >
-              Broker Buddy
-            </motion.h1>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 font-bold text-sm">BB</div>
+              <div>
+                <div className="text-xs text-gray-500 tracking-wider uppercase">Broker Buddy</div>
+                <div className="text-sm font-semibold tracking-tight">Freight OS</div>
+              </div>
+            </motion.div>
 
-            <nav className="flex flex-col gap-3">
+            <nav className="flex flex-col gap-1">
               {navItems.map((item) => {
                 const isActive = pathname === item.path;
 
                 return (
                   <motion.button
                     key={item.path}
-                    whileHover={{ scale: 1.03 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => router.push(item.path)}
-                    className={`flex items-center justify-between text-left px-4 py-2 rounded-xl transition ${
+                    className={`flex items-center justify-between text-left px-4 py-2.5 rounded-xl text-sm transition ${
                       isActive
-                        ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20"
-                        : "hover:bg-white/10 text-gray-300"
+                        ? "bg-gradient-to-r from-indigo-500/20 to-cyan-500/10 text-white border border-indigo-500/20 shadow-lg shadow-indigo-500/10"
+                        : "hover:bg-white/[0.04] text-gray-400 hover:text-gray-200"
                     }`}
                   >
                     <span>{item.name}</span>
 
-                    {/* 🔵 Gmail-style badge */}
                     {item.name === "Inbox" && newEmails > 0 && (
-                      <span className="ml-2 text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                      <span className="ml-2 text-xs bg-indigo-500/80 text-white px-2 py-0.5 rounded-full">
                         {newEmails}
                       </span>
                     )}
@@ -120,12 +124,13 @@ export default function DashboardLayout({
         {/* MAIN AREA */}
         <div className="flex-1 flex flex-col">
           {/* HEADER */}
-          <header className="relative z-40 flex justify-between items-center px-6 py-4 border-b border-white/10 bg-white/5 backdrop-blur-xl">
+          <header className="relative z-40 flex justify-between items-center px-6 py-4 border-b border-white/[0.06] bg-[#05060A]/60 backdrop-blur-2xl">
             <motion.h2
               key={pathname}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-lg font-semibold capitalize"
+              transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] }}
+              className="text-base font-semibold capitalize text-gray-200"
             >
               {pathname.replace("/dashboard", "") || "Dashboard"}
             </motion.h2>
@@ -134,18 +139,18 @@ export default function DashboardLayout({
             <div className="relative z-50" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen((v) => !v)}
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-white/15"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.08] bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 text-sm font-semibold text-white transition hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/10 active:scale-[0.96]"
               >
                 {userInitial.toUpperCase()}
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 mt-3 w-56 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-2xl backdrop-blur-xl">
-                  <div className="border-b border-white/10 px-4 py-3">
+                <div className="absolute right-0 mt-3 w-56 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0A0D18]/95 shadow-2xl backdrop-blur-2xl">
+                  <div className="border-b border-white/[0.06] px-4 py-3">
                     <p className="text-sm font-medium text-white">
                       {session?.user?.name || "Account"}
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-gray-500">
                       {session?.user?.email}
                     </p>
                   </div>
@@ -156,7 +161,7 @@ export default function DashboardLayout({
                         setMenuOpen(false);
                         router.push("/dashboard/settings");
                       }}
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-400 hover:bg-white/[0.06] hover:text-white transition"
                     >
                       Account settings
                     </button>
@@ -167,7 +172,7 @@ export default function DashboardLayout({
                           setMenuOpen(false);
                           router.push("/admin");
                         }}
-                        className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+                        className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-400 hover:bg-white/[0.06] hover:text-white transition"
                       >
                         Admin
                       </button>
@@ -178,7 +183,7 @@ export default function DashboardLayout({
                         setMenuOpen(false);
                         signOut({ callbackUrl: "/" });
                       }}
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-300 hover:bg-white/10 hover:text-red-200"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/[0.06] hover:text-rose-300 transition"
                     >
                       Sign out
                     </button>
@@ -192,8 +197,9 @@ export default function DashboardLayout({
           <main className="p-6">
             <motion.div
               key={pathname}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] }}
             >
               {children}
             </motion.div>

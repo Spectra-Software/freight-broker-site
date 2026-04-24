@@ -63,66 +63,71 @@ export default function ContactSalesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#050816] px-6 py-16 text-white">
-      <div className="mx-auto max-w-2xl">
-        <Link href="/" className="text-sm text-gray-400 hover:text-white">
+    <main className="relative min-h-screen overflow-hidden bg-[#05060A] text-white antialiased">
+      {/* Background */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#070A14] via-[#05060A] to-black" />
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('https://grainy-gradients.vercel.app/noise.svg')" }} />
+        <div className="absolute left-1/4 top-[-200px] h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-indigo-500/10 blur-[160px]" />
+        <div className="absolute right-[-100px] bottom-[-100px] h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[160px]" />
+      </div>
+
+      <div className="mx-auto max-w-2xl px-6 py-16 md:px-8">
+        <Link href="/" className="inline-flex items-center gap-1 text-sm text-gray-500 transition hover:text-gray-300">
           ← Back home
         </Link>
 
-        <h1 className="mt-4 text-4xl font-bold">Contact Sales</h1>
-        <p className="mt-3 text-gray-400">
+        <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-5xl">
+          Contact{" "}
+          <span className="bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">Sales</span>
+        </h1>
+        <p className="mt-4 text-gray-400 text-lg">
           Fill out the form and we will send it to our Sales Team.
         </p>
 
         <form
           onSubmit={onSubmit}
-          className="mt-8 space-y-5 rounded-3xl border border-white/10 bg-white/5 p-6"
+          className="mt-8 space-y-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-8"
         >
-          {/* NAME */}
           <div>
-            <label className="mb-2 block text-sm text-gray-300">Name</label>
+            <label className="mb-2 block text-sm text-gray-400">Name</label>
             <input
               name="name"
               required
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none placeholder:text-gray-500"
+              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/20 transition"
               placeholder="Your name"
             />
           </div>
 
-          {/* EMAIL */}
           <div>
-            <label className="mb-2 block text-sm text-gray-300">Email</label>
+            <label className="mb-2 block text-sm text-gray-400">Email</label>
             <input
               name="email"
               type="email"
               required
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none placeholder:text-gray-500"
+              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/20 transition"
               placeholder="you@company.com"
             />
           </div>
 
-          {/* COMPANY */}
           <div>
-            <label className="mb-2 block text-sm text-gray-300">Company</label>
+            <label className="mb-2 block text-sm text-gray-400">Company</label>
             <input
               name="company"
               required
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none placeholder:text-gray-500"
+              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/20 transition"
               placeholder="Company name"
             />
           </div>
 
-          {/* PLAN */}
           <div>
-            <label className="mb-2 block text-sm text-gray-300">
-              Select Plan
-            </label>
+            <label className="mb-2 block text-sm text-gray-400">Select Plan</label>
             <select
               name="plan"
               value={selectedPlan}
               onChange={(e) => setSelectedPlan(e.target.value)}
               required
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none text-gray-300 focus:border-blue-500"
+              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-gray-300 outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/20 transition"
             >
               <option value="">Select a plan</option>
               <option value="Starter - $59/mo">Starter - $99/mo</option>
@@ -131,26 +136,25 @@ export default function ContactSalesPage() {
             </select>
           </div>
 
-          {/* COMMENTS */}
           <div>
-            <label className="mb-2 block text-sm text-gray-300">Comments</label>
+            <label className="mb-2 block text-sm text-gray-400">Comments</label>
             <textarea
               name="comments"
               required
               rows={6}
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none placeholder:text-gray-500"
+              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/20 transition"
               placeholder="Tell us a little about your team and what you need."
             />
           </div>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-rose-400">{error}</p>}
           {done && <p className="text-sm text-emerald-400">Message sent.</p>}
 
           <button
             disabled={loading}
-            className="w-full rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            className="w-full rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 px-6 py-3 font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:shadow-xl hover:shadow-indigo-500/30 active:scale-[0.98] disabled:opacity-60"
           >
-            {loading ? "Sending..." : "Send"}
+            {loading ? "Sending..." : "Send Message"}
           </button>
         </form>
       </div>
