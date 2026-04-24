@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
 
 type Attachment = {
   id?: string;
@@ -52,7 +51,51 @@ function formatDate(value?: string) {
   if (!value) return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const isThisYear = d.getFullYear() === now.getFullYear();
+  if (isToday) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (isThisYear) return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatFullDate(value?: string) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getInitial(name?: string) {
+  if (!name) return "?";
+  const cleaned = name.replace(/[<>"]/g, "").trim();
+  const match = cleaned.match(/^(.+?)\s*<|^"?(.+?)"?\s*<|^(\S+)/);
+  if (match) {
+    const part = (match[1] || match[2] || match[3]).trim();
+    return part[0].toUpperCase();
+  }
+  return cleaned[0].toUpperCase();
+}
+
+function extractName(from?: string) {
+  if (!from) return "Unknown";
+  const match = from.match(/^"?(.+?)"?\s*<|^([^<]+)/);
+  if (match) return (match[1] || match[2]).trim();
+  return from.trim();
+}
+
+function extractEmail(from?: string) {
+  if (!from) return "";
+  const match = from.match(/<(.+?)>/);
+  if (match) return match[1].trim();
+  return from.trim();
 }
 
 function formatCountdown(ms: number): string {
@@ -360,212 +403,271 @@ export default function InboxPage() {
   const showApprovalActions = activeTab === "approval";
   const showFollowUpActions = activeTab === "followUp";
 
-  return (
-    <div className="h-[calc(100vh-6rem)] flex flex-col space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">
-            {tabs.find((t) => t.key === activeTab)?.label}
-          </h1>
-          <p className="text-sm text-gray-400">
-            Gmail, drafts, approvals, and follow-ups in one place
-          </p>
-        </div>
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      "from-indigo-500/30 to-indigo-600/20 text-indigo-300",
+      "from-cyan-500/30 to-cyan-600/20 text-cyan-300",
+      "from-violet-500/30 to-violet-600/20 text-violet-300",
+      "from-emerald-500/30 to-emerald-600/20 text-emerald-300",
+      "from-amber-500/30 to-amber-600/20 text-amber-300",
+      "from-rose-500/30 to-rose-600/20 text-rose-300",
+      "from-teal-500/30 to-teal-600/20 text-teal-300",
+      "from-pink-500/30 to-pink-600/20 text-pink-300",
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+  };
 
-        <div className="flex flex-wrap items-center gap-2">
+  return (
+    <div className="h-[calc(100vh-6rem)] flex flex-col">
+      {/* GMAIL-STYLE TOOLBAR */}
+      <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-0">
+        <div className="flex items-center gap-3">
+          {/* Refresh */}
           {(activeTab === "inbox" || activeTab === "sent") && (
             <button
               onClick={() => refreshTab(activeTab)}
               disabled={refreshing}
-              className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-gray-400 hover:bg-white/[0.06] hover:text-white transition disabled:opacity-40"
             >
-              {refreshing ? "Refreshing..." : "Refresh"}
+              <svg className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Refresh
             </button>
           )}
 
+          {/* Approval actions */}
           {showApprovalActions && (
             <>
               <button
                 onClick={toggleSelectAllApproval}
-                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-gray-400 hover:bg-white/[0.06] hover:text-white transition"
               >
-                {approvalAllSelected ? "Unselect All" : "Select All"}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {approvalAllSelected ? "Deselect All" : "Select All"}
               </button>
 
               <button
                 onClick={handleSendSelected}
                 disabled={!approvalSelectedCount}
-                className="rounded-xl bg-blue-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg bg-indigo-500/20 border border-indigo-500/20 px-3 py-1.5 text-sm text-indigo-300 hover:bg-indigo-500/30 transition disabled:opacity-40"
               >
-                Send Selected ({approvalSelectedCount})
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                Send ({approvalSelectedCount})
               </button>
 
               <button
                 onClick={handleDeleteSelected}
                 disabled={!approvalSelectedCount}
-                className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-gray-400 hover:bg-rose-500/10 hover:text-rose-300 transition disabled:opacity-40"
               >
-                Delete Selected ({approvalSelectedCount})
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Delete ({approvalSelectedCount})
               </button>
             </>
           )}
 
+          {/* Follow-up actions */}
           {showFollowUpActions && (
             <>
               <button
                 onClick={toggleSelectAllFollowUps}
-                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-gray-400 hover:bg-white/[0.06] hover:text-white transition"
               >
-                {followUpAllSelected ? "Unselect All" : "Select Ready"}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {followUpAllSelected ? "Deselect All" : "Select Ready"}
               </button>
 
               <button
                 onClick={handleSendFollowUps}
                 disabled={!followUpSelectedCount}
-                className="rounded-xl bg-emerald-500 px-4 py-2 text-sm text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg bg-emerald-500/20 border border-emerald-500/20 px-3 py-1.5 text-sm text-emerald-300 hover:bg-emerald-500/30 transition disabled:opacity-40"
               >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                 Send Follow-Up ({followUpSelectedCount})
               </button>
             </>
           )}
         </div>
+
+        {/* Email count */}
+        <span className="text-xs text-gray-500">
+          {activeItems.length} message{activeItems.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`rounded-full border px-4 py-2 text-sm transition ${
-              activeTab === tab.key
-                ? "border-white bg-white text-black"
-                : "border-white/10 bg-white/5 text-white hover:bg-white/10"
-            }`}
-          >
-            {tab.label}
-            <span className="ml-2 text-xs opacity-70">
-              {
-                tab.key === "inbox"
-                  ? inboxEmails.length
-                  : tab.key === "sent"
-                  ? sentEmails.length
-                  : tab.key === "approval"
-                  ? approvalEmails.length
-                  : followUpEmails.length
-              }
-            </span>
-          </button>
-        ))}
+      {/* GMAIL-STYLE TABS */}
+      <div className="flex items-center gap-0 border-b border-white/[0.06]">
+        {tabs.map((tab) => {
+          const count =
+            tab.key === "inbox"
+              ? inboxEmails.length
+              : tab.key === "sent"
+              ? sentEmails.length
+              : tab.key === "approval"
+              ? approvalEmails.length
+              : followUpEmails.length;
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`relative px-5 py-2.5 text-sm font-medium transition ${
+                isActive
+                  ? "text-indigo-300"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              {isActive && (
+                <div className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-indigo-500" />
+              )}
+              {tab.label}
+              {count > 0 && (
+                <span className={`ml-1.5 text-xs ${isActive ? "text-indigo-400" : "text-gray-600"}`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="flex flex-1 gap-4 overflow-hidden">
-        <div className="w-[380px] overflow-y-auto rounded-2xl border border-white/10 bg-white/5">
-          {loading && <div className="p-4 text-sm text-gray-400">Loading...</div>}
+      {/* MAIN CONTENT */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* EMAIL LIST */}
+        <div className="w-[380px] min-w-[380px] overflow-y-auto border-r border-white/[0.06]">
+          {loading && (
+            <div className="flex items-center justify-center py-12 text-sm text-gray-500">
+              <div className="h-5 w-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mr-2" />
+              Loading...
+            </div>
+          )}
 
           {!loading && activeItems.length === 0 && (
-            <div className="p-4 text-sm text-gray-400">Nothing here yet.</div>
+            <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+              <svg className="w-12 h-12 mb-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+              No messages
+            </div>
           )}
 
           {activeItems.map((email: EmailItem) => {
             const isSelected = selectedEmail?.id === email.id;
+            const sender = extractName(email.from || email.to);
+            const initial = getInitial(email.from || email.to);
+            const avatarColor = getAvatarColor(sender);
+            const dateStr = formatDate(email.time || email.sentAt || email.scheduledAt);
 
             return (
               <div
                 key={email.id}
                 onClick={() => setSelectedEmail(email)}
-                className={`cursor-pointer border-b border-white/5 p-4 transition hover:bg-white/10 ${
-                  isSelected ? "bg-white/10" : ""
+                className={`flex items-start gap-3 px-4 py-3 cursor-pointer border-b border-white/[0.04] transition ${
+                  isSelected
+                    ? "bg-indigo-500/[0.08] border-l-2 border-l-indigo-500"
+                    : "hover:bg-white/[0.03] border-l-2 border-l-transparent"
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-white">
-                      {email.from || email.to || "Unknown"}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-400">
-                      {formatDate(email.time || email.sentAt || email.scheduledAt)}
-                    </p>
-                  </div>
+                {/* Checkbox for approval/follow-up */}
+                {(activeTab === "approval" || (activeTab === "followUp" && isFollowUpReady(email))) && (
+                  <input
+                    type="checkbox"
+                    checked={
+                      activeTab === "approval"
+                        ? selectedApprovalIds.includes(email.id)
+                        : selectedFollowUpIds.includes(email.id)
+                    }
+                    onChange={() => {
+                      if (activeTab === "approval") toggleApprovalItem(email.id);
+                      else toggleFollowUpItem(email.id);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent accent-indigo-500 flex-shrink-0"
+                  />
+                )}
 
-                  {activeTab === "approval" && (
-                    <input
-                      type="checkbox"
-                      checked={selectedApprovalIds.includes(email.id)}
-                      onChange={() => toggleApprovalItem(email.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent"
-                    />
-                  )}
+                {/* Avatar */}
+                <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold ${avatarColor}`}>
+                  {initial}
                 </div>
 
-                <p className="mt-2 truncate text-sm font-medium text-gray-200">
-                  {email.subject}
-                </p>
-
-                <p className="mt-1 truncate text-xs text-gray-400">{email.snippet}</p>
-
-                {activeTab === "followUp" && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <CountdownBadge scheduledAt={email.scheduledAt} />
-                    {isFollowUpReady(email) && (
-                      <input
-                        type="checkbox"
-                        checked={selectedFollowUpIds.includes(email.id)}
-                        onChange={() => toggleFollowUpItem(email.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-4 w-4 rounded border-white/20 bg-transparent"
-                      />
-                    )}
+                {/* Content */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`truncate text-sm ${isSelected ? "font-semibold text-white" : "font-medium text-gray-200"}`}>
+                      {sender}
+                    </p>
+                    <span className="flex-shrink-0 text-xs text-gray-500">{dateStr}</span>
                   </div>
-                )}
+                  <p className={`mt-0.5 truncate text-sm ${isSelected ? "text-gray-200" : "text-gray-400"}`}>
+                    {email.subject}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-gray-500">{email.snippet}</p>
+
+                  {activeTab === "followUp" && (
+                    <div className="mt-1.5">
+                      <CountdownBadge scheduledAt={email.scheduledAt} />
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
 
-        <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+        {/* EMAIL DETAIL */}
+        <div className="flex flex-1 flex-col overflow-hidden">
           {!selectedEmail ? (
-            <div className="m-auto text-gray-400">Select an item to view</div>
+            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+              <svg className="w-16 h-16 mb-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+              <p className="text-sm">Select a message to read</p>
+            </div>
           ) : (
             <>
-              <div className="border-b border-white/10 p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-white">
-                      {selectedEmail.subject}
-                    </h2>
-
-                    <p className="mt-1 text-sm text-gray-400">
-                      {selectedEmail.from
-                        ? `From: ${selectedEmail.from}`
-                        : selectedEmail.to
-                        ? `To: ${selectedEmail.to}`
-                        : "No recipient available"}
-                    </p>
+              {/* Email header */}
+              <div className="border-b border-white/[0.06] px-6 py-4">
+                <h2 className="text-lg font-semibold text-white mb-3">
+                  {selectedEmail.subject}
+                </h2>
+                <div className="flex items-start gap-3">
+                  <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-sm font-semibold ${getAvatarColor(extractName(selectedEmail.from || selectedEmail.to))}`}>
+                    {getInitial(selectedEmail.from || selectedEmail.to)}
                   </div>
-
-                  {(selectedEmail.time ||
-                    selectedEmail.sentAt ||
-                    selectedEmail.scheduledAt) && (
-                    <p className="text-xs text-gray-400">
-                      {formatDate(
-                        selectedEmail.time ||
-                          selectedEmail.sentAt ||
-                          selectedEmail.scheduledAt
-                      )}
-                    </p>
-                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-medium text-white">
+                        {extractName(selectedEmail.from || selectedEmail.to)}
+                      </span>
+                      <span className="text-xs text-gray-500 truncate">
+                        &lt;{extractEmail(selectedEmail.from || selectedEmail.to)}&gt;
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-gray-500">
+                        {selectedEmail.from ? "to me" : selectedEmail.to ? `to ${extractName(selectedEmail.to)}` : ""}
+                      </span>
+                      <span className="text-xs text-gray-600">·</span>
+                      <span className="text-xs text-gray-500">
+                        {formatFullDate(selectedEmail.time || selectedEmail.sentAt || selectedEmail.scheduledAt)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-5 text-sm text-gray-200">
-                <ReactMarkdown>
-                  {selectedEmail.body || selectedEmail.snippet || "No content available."}
-                </ReactMarkdown>
+              {/* Email body */}
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <div
+                  className="text-sm text-gray-300 leading-relaxed prose prose-invert prose-sm max-w-none [&_a]:text-indigo-400 [&_a]:underline [&_a:hover]:text-indigo-300 [&_p]:mb-3 [&_ul]:mb-3 [&_ol]:mb-3 [&_li]:mb-1 [&_h1]:text-base [&_h2]:text-base [&_h3]:text-base [&_img]:rounded-lg [&_blockquote]:border-l-2 [&_blockquote]:border-indigo-500/30 [&_blockquote]:pl-4 [&_blockquote]:text-gray-400"
+                  dangerouslySetInnerHTML={{
+                    __html: selectedEmail.body || (selectedEmail.snippet ? `<p>${selectedEmail.snippet}</p>` : "<p>No content available.</p>"),
+                  }}
+                />
 
                 {selectedEmail.attachments?.length ? (
-                  <div className="mt-6">
-                    <h3 className="mb-2 text-sm font-semibold text-white">Attachments</h3>
+                  <div className="mt-6 pt-4 border-t border-white/[0.06]">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">
+                      {selectedEmail.attachments.length} attachment{selectedEmail.attachments.length !== 1 ? "s" : ""}
+                    </p>
                     <div className="flex flex-wrap gap-2">
                       {selectedEmail.attachments.map((file: Attachment) => (
                         <a
@@ -573,8 +675,9 @@ export default function InboxPage() {
                           href={file.url || "#"}
                           target={file.url ? "_blank" : undefined}
                           rel={file.url ? "noreferrer" : undefined}
-                          className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs text-white hover:bg-white/20"
+                          className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-gray-300 hover:bg-white/[0.06] hover:text-white transition"
                         >
+                          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                           {file.name}
                         </a>
                       ))}
@@ -583,32 +686,34 @@ export default function InboxPage() {
                 ) : null}
 
                 {activeTab === "followUp" && selectedEmail.scheduledAt ? (
-                  <div className="mt-6 flex items-center gap-3">
+                  <div className="mt-6 pt-4 border-t border-white/[0.06] flex items-center gap-3">
                     <CountdownBadge scheduledAt={selectedEmail.scheduledAt} />
-                    <span className="text-xs text-gray-400">
-                      Scheduled: {formatDate(selectedEmail.scheduledAt)}
+                    <span className="text-xs text-gray-500">
+                      Scheduled: {formatFullDate(selectedEmail.scheduledAt)}
                     </span>
                   </div>
                 ) : null}
               </div>
 
-              <div className="flex gap-3 border-t border-white/10 p-4">
-                <button className="rounded-xl bg-blue-500 px-4 py-2 text-sm text-white hover:bg-blue-600">
+              {/* Action bar */}
+              <div className="flex items-center gap-2 border-t border-white/[0.06] px-6 py-3">
+                <button className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white transition">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
                   Reply
                 </button>
 
-                <button className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20">
+                <button className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.06] hover:text-white transition">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                   Forward
                 </button>
 
                 {activeTab === "approval" && (
                   <button
                     onClick={handleSendSelected}
-                    disabled={
-                      !selectedApprovalIds.includes(selectedEmail.id) && !approvalSelectedCount
-                    }
-                    className="rounded-xl bg-emerald-500 px-4 py-2 text-sm text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!selectedApprovalIds.includes(selectedEmail.id) && !approvalSelectedCount}
+                    className="flex items-center gap-2 rounded-lg bg-indigo-500/20 border border-indigo-500/20 px-4 py-2 text-sm text-indigo-300 hover:bg-indigo-500/30 transition disabled:opacity-40"
                   >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                     Send Draft
                   </button>
                 )}
@@ -616,8 +721,9 @@ export default function InboxPage() {
                 {activeTab === "approval" && (
                   <button
                     onClick={() => handleDeleteSingle(selectedEmail?.id)}
-                    className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white hover:bg-rose-600"
+                    className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-gray-400 hover:bg-rose-500/10 hover:text-rose-300 transition"
                   >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     Delete Draft
                   </button>
                 )}
@@ -626,7 +732,7 @@ export default function InboxPage() {
                   <button
                     onClick={handleSendFollowUps}
                     disabled={!selectedFollowUpIds.includes(selectedEmail.id)}
-                    className="rounded-xl bg-emerald-500 px-4 py-2 text-sm text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex items-center gap-2 rounded-lg bg-emerald-500/20 border border-emerald-500/20 px-4 py-2 text-sm text-emerald-300 hover:bg-emerald-500/30 transition disabled:opacity-40"
                   >
                     {selectedFollowUpIds.includes(selectedEmail.id) ? "Send Follow-Up" : "Select to Send"}
                   </button>
@@ -635,16 +741,17 @@ export default function InboxPage() {
                 {activeTab === "followUp" && !isFollowUpReady(selectedEmail) && (
                   <button
                     disabled
-                    className="rounded-xl bg-white/10 px-4 py-2 text-sm text-gray-500 cursor-not-allowed"
+                    className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
                   >
-                    Wait to Send
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Scheduled
                   </button>
                 )}
 
                 {activeTab === "followUp" && (
                   <button
                     onClick={() => handleDeleteFollowUp(selectedEmail?.id)}
-                    className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white hover:bg-rose-600"
+                    className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-gray-400 hover:bg-rose-500/10 hover:text-rose-300 transition"
                   >
                     Delete
                   </button>
