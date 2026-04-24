@@ -31,6 +31,9 @@ export default function QuoteALanePage() {
   const [profitMiles, setProfitMiles] = useState<string>("");
   const [profitFuelCost, setProfitFuelCost] = useState<string>("");
 
+  // Route geometry from OSRM for the map to draw
+  const [routeCoords, setRouteCoords] = useState<[number, number][] | null>(null);
+
   const mapRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -107,36 +110,37 @@ export default function QuoteALanePage() {
     }
 
     if (originCoord && destCoord) {
-      const latlngs = [ [originCoord.lat, originCoord.lng], [destCoord.lat, destCoord.lng] ];
-      // Draw a polyline following highways using the OSRM route service for better road routing
-      (async () => {
-        try {
-          const url = `https://router.project-osrm.org/route/v1/driving/${originCoord.lng},${originCoord.lat};${destCoord.lng},${destCoord.lat}?overview=full&geometries=geojson`;
-          const r = await fetch(url);
-          if (r.ok) {
-            const data = await r.json();
-            const coords = data.routes?.[0]?.geometry?.coordinates || null;
-            if (coords && Array.isArray(coords) && coords.length) {
-              const latlngsRoute = coords.map((c: any) => [c[1], c[0]]);
-              polylineRef.current = L.polyline(latlngsRoute, { color: 'blue' }).addTo(leafletMapRef.current);
-            } else {
-              polylineRef.current = L.polyline(latlngs, { color: 'blue' }).addTo(leafletMapRef.current);
-            }
-          } else {
-            polylineRef.current = L.polyline(latlngs, { color: 'blue' }).addTo(leafletMapRef.current);
-          }
-        } catch (e) {
-          polylineRef.current = L.polyline(latlngs, { color: 'blue' }).addTo(leafletMapRef.current);
-        }
-        if (polylineRef.current) {
-          leafletMapRef.current.fitBounds(polylineRef.current.getBounds(), { padding: [40, 40] });
-        }
-      })();
+      const straightLine = [ [originCoord.lat, originCoord.lng], [destCoord.lat, destCoord.lng] ];
+
+      if (routeCoords && routeCoords.length > 1) {
+        // Draw the actual OSRM route with indigo glow
+        polylineRef.current = L.polyline(routeCoords, {
+          color: '#818cf8',
+          weight: 5,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(leafletMapRef.current);
+        // Glow shadow underneath
+        L.polyline(routeCoords, {
+          color: '#6366f1',
+          weight: 12,
+          opacity: 0.2,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(leafletMapRef.current);
+      } else {
+        polylineRef.current = L.polyline(straightLine, { color: '#818cf8', weight: 5, opacity: 0.9 }).addTo(leafletMapRef.current);
+      }
+
+      // Zoom to fit the route with smooth animation
+      const bounds = polylineRef.current.getBounds();
+      leafletMapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 10, animate: true, duration: 1 });
     } else if (originCoord || destCoord) {
       const loc = originCoord || destCoord;
       leafletMapRef.current.setView([loc!.lat, loc!.lng], 8);
     }
-  }, [originCoord, destCoord]);
+  }, [originCoord, destCoord, routeCoords]);
 
 
   async function geocode(query: string) {
@@ -168,6 +172,7 @@ export default function QuoteALanePage() {
     setLoading(true);
     setMiles(null);
     setEstimatedRate(null);
+    setRouteCoords(null);
 
     try {
       const o = await geocode(origin);
@@ -182,8 +187,30 @@ export default function QuoteALanePage() {
       setOriginCoord(o);
       setDestCoord(d);
 
-      const m = haversine(o, d);
-      setMiles(Number(m.toFixed(1)));
+      // Fetch OSRM route for actual driving miles and route geometry
+      let routeMiles = haversine(o, d);
+      let coords: [number, number][] | null = null;
+      try {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=full&geometries=geojson`;
+        const r = await fetch(osrmUrl);
+        if (r.ok) {
+          const data = await r.json();
+          const route = data.routes?.[0];
+          if (route?.distance) {
+            routeMiles = route.distance / 1609.34;
+          }
+          const geoCoords = route?.geometry?.coordinates;
+          if (geoCoords && Array.isArray(geoCoords) && geoCoords.length) {
+            coords = geoCoords.map((c: any) => [c[1], c[0]] as [number, number]);
+          }
+        }
+      } catch (e) {
+        // Fall back to haversine + straight line
+      }
+
+      const m = Number(routeMiles.toFixed(1));
+      setMiles(m);
+      setRouteCoords(coords);
 
       // Fetch national diesel price and adjust rate per mile
       let diesel = 3.5;
@@ -199,9 +226,15 @@ export default function QuoteALanePage() {
       }
 
       const baseRatePerMile = trailerRates[selectedTrailer] ?? trailerRates.dry_van;
-      // adjust per-mile by diesel price factor (simple proportional scaling to a baseline of $3.5)
       const adjusted = baseRatePerMile * (diesel / 3.5);
-      setEstimatedRate(Number((m * adjusted).toFixed(2)));
+      const totalRate = Number((m * adjusted).toFixed(2));
+      setEstimatedRate(totalRate);
+
+      // Auto-populate Profit Calculator
+      const fuelCost = Number((m * diesel / 6.5).toFixed(2)); // ~6.5 mpg avg
+      setProfitRate(totalRate.toString());
+      setProfitMiles(m.toString());
+      setProfitFuelCost(fuelCost.toString());
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
