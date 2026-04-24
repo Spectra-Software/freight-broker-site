@@ -304,30 +304,33 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white">
+    <div className="relative flex min-h-screen overflow-hidden bg-[#05060A] text-white antialiased">
       <AnimatedBackground />
 
       <div className="relative z-10 flex w-full">
         {/* SIDEBAR */}
-        <aside className="flex w-72 flex-col justify-between border-r border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <aside className="flex w-72 flex-col justify-between border-r border-white/[0.06] bg-white/[0.02] p-6 backdrop-blur-2xl">
           <div>
-            <div className="mb-10">
-              <p className="text-sm text-gray-400">Admin Console</p>
-              <h1 className="text-2xl font-bold">Broker Buddy</h1>
+            <div className="flex items-center gap-3 mb-10">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 font-bold text-sm">BB</div>
+              <div>
+                <div className="text-xs text-gray-500 tracking-wider uppercase">Admin Console</div>
+                <div className="text-sm font-semibold tracking-tight">Freight OS</div>
+              </div>
             </div>
 
-            <nav className="space-y-3">
-              <button onClick={() => setView("applications")} className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${view === "applications" ? "bg-blue-500 text-white" : "text-gray-300 hover:bg-white/10"}`}>
+            <nav className="space-y-1">
+              <button onClick={() => setView("applications")} className={`w-full rounded-xl px-4 py-2.5 text-left text-sm font-medium transition ${view === "applications" ? "bg-gradient-to-r from-indigo-500/20 to-cyan-500/10 text-white border border-indigo-500/20 shadow-lg shadow-indigo-500/10" : "text-gray-400 hover:bg-white/[0.04] hover:text-gray-200"}`}>
                 Applications
               </button>
 
-              <button onClick={() => setView("users")} className={`w-full rounded-xl px-4 py-3 text-left font-semibold ${view === "users" ? "bg-blue-500 text-white" : "text-gray-300 hover:bg-white/10"}`}>
+              <button onClick={() => setView("users")} className={`w-full rounded-xl px-4 py-2.5 text-left text-sm font-medium transition ${view === "users" ? "bg-gradient-to-r from-indigo-500/20 to-cyan-500/10 text-white border border-indigo-500/20 shadow-lg shadow-indigo-500/10" : "text-gray-400 hover:bg-white/[0.04] hover:text-gray-200"}`}>
                 Users
               </button>
             </nav>
           </div>
 
-          <button onClick={() => router.push("/dashboard")} className="mt-10 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white hover:bg-white/10">
+          <button onClick={() => router.push("/dashboard")} className="mt-10 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm font-medium text-gray-400 transition hover:bg-white/[0.06] hover:text-white active:scale-[0.98]">
             Back to Dashboard
           </button>
         </aside>
@@ -335,40 +338,40 @@ export default function AdminPage() {
         {/* MAIN */}
         <div className="flex-1 flex-col">
 
-          <header className="flex items-center justify-between border-b border-white/10 bg-white/5 px-6 py-4 backdrop-blur-xl">
+          <header className="flex items-center justify-between border-b border-white/[0.06] bg-[#05060A]/60 px-6 py-4 backdrop-blur-2xl">
             <div>
-              <p className="text-sm text-gray-400">Overview</p>
-              <h2 className="text-xl font-semibold capitalize">{view}</h2>
+              <p className="text-xs text-gray-500 uppercase tracking-wider">Overview</p>
+              <h2 className="text-base font-semibold capitalize text-gray-200">{view}</h2>
             </div>
 
             {view === "applications" && (
-              <div className="flex gap-2">
-                <button onClick={() => setFilter("PENDING")} className={`rounded-xl px-4 py-2 text-sm ${filter === "PENDING" ? "bg-blue-500 text-white" : "bg-white/5 text-gray-300"}`}>
+              <div className="flex gap-1">
+                <button onClick={() => setFilter("PENDING")} className={`rounded-lg px-4 py-2 text-sm transition ${filter === "PENDING" ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/20" : "bg-white/[0.03] text-gray-400 hover:bg-white/[0.06] hover:text-gray-200"}`}>
                   Pending ({stats.pending})
                 </button>
 
-                <button onClick={() => setFilter("APPROVED")} className={`rounded-xl px-4 py-2 text-sm ${filter === "APPROVED" ? "bg-emerald-500 text-white" : "bg-white/5 text-gray-300"}`}>
+                <button onClick={() => setFilter("APPROVED")} className={`rounded-lg px-4 py-2 text-sm transition ${filter === "APPROVED" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/20" : "bg-white/[0.03] text-gray-400 hover:bg-white/[0.06] hover:text-gray-200"}`}>
                   Approved ({stats.approved})
                 </button>
 
-                <button onClick={() => setFilter("DENIED")} className={`rounded-xl px-4 py-2 text-sm ${filter === "DENIED" ? "bg-red-500 text-white" : "bg-white/5 text-gray-300"}`}>
+                <button onClick={() => setFilter("DENIED")} className={`rounded-lg px-4 py-2 text-sm transition ${filter === "DENIED" ? "bg-rose-500/20 text-rose-300 border border-rose-500/20" : "bg-white/[0.03] text-gray-400 hover:bg-white/[0.06] hover:text-gray-200"}`}>
                   Denied ({stats.denied})
                 </button>
               </div>
             )}
 
             {view === "users" && (
-              <div className="flex gap-2">
-                <button onClick={() => setUserFilter("ALL")} className={`rounded-xl px-4 py-2 text-sm ${userFilter === "ALL" ? "bg-blue-500 text-white" : "bg-white/5 text-gray-300"}`}>
+              <div className="flex gap-1">
+                <button onClick={() => setUserFilter("ALL")} className={`rounded-lg px-4 py-2 text-sm transition ${userFilter === "ALL" ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/20" : "bg-white/[0.03] text-gray-400 hover:bg-white/[0.06] hover:text-gray-200"}`}>
                   All ({userStats.total})
                 </button>
-                <button onClick={() => setUserFilter("ACTIVE")} className={`rounded-xl px-4 py-2 text-sm ${userFilter === "ACTIVE" ? "bg-green-500 text-white" : "bg-white/5 text-gray-300"}`}>
+                <button onClick={() => setUserFilter("ACTIVE")} className={`rounded-lg px-4 py-2 text-sm transition ${userFilter === "ACTIVE" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/20" : "bg-white/[0.03] text-gray-400 hover:bg-white/[0.06] hover:text-gray-200"}`}>
                   Active ({userStats.active})
                 </button>
-                <button onClick={() => setUserFilter("SUSPENDED")} className={`rounded-xl px-4 py-2 text-sm ${userFilter === "SUSPENDED" ? "bg-yellow-500 text-white" : "bg-white/5 text-gray-300"}`}>
+                <button onClick={() => setUserFilter("SUSPENDED")} className={`rounded-lg px-4 py-2 text-sm transition ${userFilter === "SUSPENDED" ? "bg-amber-500/20 text-amber-300 border border-amber-500/20" : "bg-white/[0.03] text-gray-400 hover:bg-white/[0.06] hover:text-gray-200"}`}>
                   Suspended ({userStats.suspended})
                 </button>
-                <button onClick={() => setUserFilter("BANNED")} className={`rounded-xl px-4 py-2 text-sm ${userFilter === "BANNED" ? "bg-red-500 text-white" : "bg-white/5 text-gray-300"}`}>
+                <button onClick={() => setUserFilter("BANNED")} className={`rounded-lg px-4 py-2 text-sm transition ${userFilter === "BANNED" ? "bg-rose-500/20 text-rose-300 border border-rose-500/20" : "bg-white/[0.03] text-gray-400 hover:bg-white/[0.06] hover:text-gray-200"}`}>
                   Banned ({userStats.banned})
                 </button>
               </div>
@@ -379,34 +382,34 @@ export default function AdminPage() {
 
             {/* APPLICATIONS VIEW */}
             {view === "applications" && (
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
 
                 {loading ? (
-                  <p className="text-gray-400">Loading...</p>
+                  <p className="text-gray-500">Loading...</p>
                 ) : filteredApps.length === 0 ? (
-                  <p className="text-gray-400">No {filter.toLowerCase()} applications.</p>
+                  <p className="text-gray-500">No {filter.toLowerCase()} applications.</p>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
 
                     {filteredApps.map((app) => (
-                      <motion.div key={app.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                      <motion.div key={app.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:border-white/[0.1] transition">
 
                         <div className="flex justify-between gap-6">
 
                           <div onClick={() => openGmailCompose(app)} className="cursor-pointer">
-                            <h4 className="text-lg font-semibold hover:text-blue-400">{app.name}</h4>
-                            <p className="text-sm text-gray-300">{app.email} · {app.company}</p>
+                            <h4 className="text-base font-semibold hover:text-indigo-400 transition">{app.name}</h4>
+                            <p className="text-sm text-gray-500">{app.email} · {app.company}</p>
                           </div>
 
                           <div className="flex gap-2">
 
                             {app.status === "PENDING" && (
                               <>
-                                <button onClick={() => approve(app.id)} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold">
+                                <button onClick={() => approve(app.id)} className="rounded-lg bg-emerald-500/20 border border-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/30 transition active:scale-[0.98]">
                                   Approve
                                 </button>
 
-                                <button onClick={() => deny(app.id)} className="rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold">
+                                <button onClick={() => deny(app.id)} className="rounded-lg bg-rose-500/20 border border-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-300 hover:bg-rose-500/30 transition active:scale-[0.98]">
                                   Deny
                                 </button>
                               </>
@@ -416,10 +419,10 @@ export default function AdminPage() {
                               <button
                                 onClick={() => resendInvite(app.id)}
                                 disabled={resendingId === app.id || !!cooldowns[app.id]}
-                                className="rounded-xl px-4 py-2 text-sm font-semibold flex items-center justify-center min-w-[140px] bg-blue-500 disabled:opacity-70"
+                                className="rounded-lg px-4 py-2 text-sm font-semibold flex items-center justify-center min-w-[140px] bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 disabled:opacity-50 transition active:scale-[0.98]"
                               >
                                 {resendingId === app.id ? (
-                                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <div className="h-4 w-4 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" />
                                 ) : cooldowns[app.id] ? (
                                   `Wait ${cooldowns[app.id]}s`
                                 ) : (
@@ -443,16 +446,16 @@ export default function AdminPage() {
 
             {/* USERS VIEW */}
             {view === "users" && (
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
                 {usersLoading ? (
-                  <p className="text-gray-400">Loading users...</p>
+                  <p className="text-gray-500">Loading users...</p>
                 ) : filteredUsers.length === 0 ? (
-                  <p className="text-gray-400">No users found.</p>
+                  <p className="text-gray-500">No users found.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead>
-                        <tr className="border-b border-white/10 text-gray-400">
+                        <tr className="border-b border-white/[0.06] text-gray-500">
                           <th className="pb-3 pr-4 font-medium">User</th>
                           <th className="pb-3 pr-4 font-medium">Company</th>
                           <th className="pb-3 pr-4 font-medium">Plan</th>
@@ -462,16 +465,16 @@ export default function AdminPage() {
                           <th className="pb-3 font-medium">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/5">
+                      <tbody className="divide-y divide-white/[0.04]">
                         {filteredUsers.map((u) => (
-                          <tr key={u.id} className="group hover:bg-white/5 transition">
+                          <tr key={u.id} className="group hover:bg-white/[0.03] transition">
                             <td className="py-3 pr-4">
                               <div>
                                 <p className="font-semibold text-white">{u.name || "—"}</p>
-                                <p className="text-xs text-gray-400">{u.email}</p>
+                                <p className="text-xs text-gray-500">{u.email}</p>
                               </div>
                             </td>
-                            <td className="py-3 pr-4 text-gray-300">{u.company || "—"}</td>
+                            <td className="py-3 pr-4 text-gray-400">{u.company || "—"}</td>
                             <td className="py-3 pr-4">
                               <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${planBadge(u.plan)}`}>
                                 {u.plan}
@@ -482,15 +485,15 @@ export default function AdminPage() {
                                 {u.status}
                               </span>
                             </td>
-                            <td className="py-3 pr-4 text-gray-300">{u._count.emails}</td>
-                            <td className="py-3 pr-4 text-gray-400 text-xs">
+                            <td className="py-3 pr-4 text-gray-400">{u._count.emails}</td>
+                            <td className="py-3 pr-4 text-gray-500 text-xs">
                               {new Date(u.createdAt).toLocaleDateString()}
                             </td>
                             <td className="py-3">
                               <div className="flex items-center gap-2">
                                 <button
                                   onClick={() => loadUserDetail(u.id)}
-                                  className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20"
+                                  className="rounded-lg bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-gray-300 hover:bg-white/[0.1] hover:text-white transition"
                                 >
                                   View
                                 </button>
@@ -499,14 +502,14 @@ export default function AdminPage() {
                                     <button
                                       onClick={() => updateUserStatus(u.id, "SUSPENDED")}
                                       disabled={statusUpdating === u.id}
-                                      className="rounded-lg bg-yellow-500/20 px-3 py-1.5 text-xs font-semibold text-yellow-400 hover:bg-yellow-500/30 disabled:opacity-50"
+                                      className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 transition"
                                     >
                                       Suspend
                                     </button>
                                     <button
                                       onClick={() => updateUserStatus(u.id, "BANNED")}
                                       disabled={statusUpdating === u.id}
-                                      className="rounded-lg bg-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/30 disabled:opacity-50"
+                                      className="rounded-lg bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/30 disabled:opacity-50 transition"
                                     >
                                       Ban
                                     </button>
@@ -517,14 +520,14 @@ export default function AdminPage() {
                                     <button
                                       onClick={() => updateUserStatus(u.id, "ACTIVE")}
                                       disabled={statusUpdating === u.id}
-                                      className="rounded-lg bg-green-500/20 px-3 py-1.5 text-xs font-semibold text-green-400 hover:bg-green-500/30 disabled:opacity-50"
+                                      className="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 transition"
                                     >
                                       Reactivate
                                     </button>
                                     <button
                                       onClick={() => updateUserStatus(u.id, "BANNED")}
                                       disabled={statusUpdating === u.id}
-                                      className="rounded-lg bg-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/30 disabled:opacity-50"
+                                      className="rounded-lg bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/30 disabled:opacity-50 transition"
                                     >
                                       Ban
                                     </button>
@@ -534,7 +537,7 @@ export default function AdminPage() {
                                   <button
                                     onClick={() => updateUserStatus(u.id, "ACTIVE")}
                                     disabled={statusUpdating === u.id}
-                                    className="rounded-lg bg-green-500/20 px-3 py-1.5 text-xs font-semibold text-green-400 hover:bg-green-500/30 disabled:opacity-50"
+                                    className="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 transition"
                                   >
                                     Unban
                                   </button>
@@ -557,64 +560,64 @@ export default function AdminPage() {
       {/* USER DETAIL MODAL */}
       {showDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDetail(false)}>
-          <div className="relative max-h-[80vh] w-[700px] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="relative max-h-[80vh] w-[700px] overflow-y-auto rounded-2xl border border-white/[0.08] bg-[#0A0D18]/95 p-6 backdrop-blur-2xl" onClick={(e) => e.stopPropagation()}>
 
             {detailLoading ? (
-              <p className="text-gray-400">Loading user details...</p>
+              <p className="text-gray-500">Loading user details...</p>
             ) : selectedUser ? (
               <div className="space-y-6">
                 {/* Header */}
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold text-white">{selectedUser.user.name || "—"}</h2>
-                    <p className="text-sm text-gray-400">{selectedUser.user.email}</p>
+                    <h2 className="text-xl font-bold text-white">{selectedUser.user.name || "—"}</h2>
+                    <p className="text-sm text-gray-500">{selectedUser.user.email}</p>
                   </div>
-                  <button onClick={() => setShowDetail(false)} className="rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20">
+                  <button onClick={() => setShowDetail(false)} className="rounded-lg bg-white/[0.06] px-3 py-1.5 text-sm text-gray-400 hover:bg-white/[0.1] hover:text-white transition">
                     Close
                   </button>
                 </div>
 
                 {/* Info Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs text-gray-400">Company</p>
-                    <p className="text-sm text-white">{selectedUser.user.company || "—"}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Company</p>
+                    <p className="mt-1 text-sm text-white">{selectedUser.user.company || "—"}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs text-gray-400">Phone</p>
-                    <p className="text-sm text-white">{selectedUser.user.phone || "—"}</p>
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Phone</p>
+                    <p className="mt-1 text-sm text-white">{selectedUser.user.phone || "—"}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs text-gray-400">Plan</p>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${planBadge(selectedUser.user.plan)}`}>
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Plan</p>
+                    <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${planBadge(selectedUser.user.plan)}`}>
                       {selectedUser.user.plan}
                     </span>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs text-gray-400">Status</p>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadge(selectedUser.user.status)}`}>
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Status</p>
+                    <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadge(selectedUser.user.status)}`}>
                       {selectedUser.user.status}
                     </span>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs text-gray-400">Role</p>
-                    <p className="text-sm text-white">{selectedUser.user.role}</p>
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Role</p>
+                    <p className="mt-1 text-sm text-white">{selectedUser.user.role}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs text-gray-400">Joined</p>
-                    <p className="text-sm text-white">{new Date(selectedUser.user.createdAt).toLocaleDateString()}</p>
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">Joined</p>
+                    <p className="mt-1 text-sm text-white">{new Date(selectedUser.user.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
 
                 {/* Moderation Actions */}
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-xs text-gray-400 mb-3">Moderation Actions</p>
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Moderation Actions</p>
                   <div className="flex gap-2">
                     {selectedUser.user.status !== "ACTIVE" && (
                       <button
                         onClick={() => updateUserStatus(selectedUser.user.id, "ACTIVE")}
                         disabled={statusUpdating === selectedUser.user.id}
-                        className="rounded-xl bg-green-500/20 px-4 py-2 text-sm font-semibold text-green-400 hover:bg-green-500/30 disabled:opacity-50"
+                        className="rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 transition active:scale-[0.98]"
                       >
                         Reactivate
                       </button>
@@ -623,7 +626,7 @@ export default function AdminPage() {
                       <button
                         onClick={() => updateUserStatus(selectedUser.user.id, "SUSPENDED")}
                         disabled={statusUpdating === selectedUser.user.id}
-                        className="rounded-xl bg-yellow-500/20 px-4 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/30 disabled:opacity-50"
+                        className="rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 transition active:scale-[0.98]"
                       >
                         Suspend
                       </button>
@@ -632,7 +635,7 @@ export default function AdminPage() {
                       <button
                         onClick={() => updateUserStatus(selectedUser.user.id, "BANNED")}
                         disabled={statusUpdating === selectedUser.user.id}
-                        className="rounded-xl bg-red-500/20 px-4 py-2 text-sm font-semibold text-red-400 hover:bg-red-500/30 disabled:opacity-50"
+                        className="rounded-lg bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-400 hover:bg-rose-500/30 disabled:opacity-50 transition active:scale-[0.98]"
                       >
                         Ban
                       </button>
@@ -640,24 +643,24 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Email Activity (Chat Logs) */}
+                {/* Email Activity */}
                 <div>
                   <h3 className="text-sm font-semibold text-white mb-3">Email Activity ({selectedUser.emails.length})</h3>
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {selectedUser.emails.length === 0 ? (
-                      <p className="text-sm text-gray-400">No email activity.</p>
+                      <p className="text-sm text-gray-500">No email activity.</p>
                     ) : (
                       selectedUser.emails.map((email) => (
-                        <div key={email.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <div key={email.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-white truncate max-w-[400px]">{email.subject}</p>
                             <div className="flex items-center gap-2">
                               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                email.status === "SENT" ? "bg-green-500/20 text-green-400" :
-                                email.status === "DRAFT" ? "bg-blue-500/20 text-blue-400" :
-                                email.status === "FOLLOW_UP" ? "bg-yellow-500/20 text-yellow-400" :
-                                email.status === "FAILED" ? "bg-red-500/20 text-red-400" :
-                                "bg-white/10 text-gray-400"
+                                email.status === "SENT" ? "bg-emerald-500/20 text-emerald-400" :
+                                email.status === "DRAFT" ? "bg-indigo-500/20 text-indigo-400" :
+                                email.status === "FOLLOW_UP" ? "bg-amber-500/20 text-amber-400" :
+                                email.status === "FAILED" ? "bg-rose-500/20 text-rose-400" :
+                                "bg-white/[0.06] text-gray-400"
                               }`}>
                                 {email.status}
                               </span>
@@ -666,11 +669,11 @@ export default function AdminPage() {
                               </span>
                             </div>
                           </div>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <p className="text-xs text-gray-500 mt-1">
                             To: {email.to} {email.company && `· ${email.company}`}
                           </p>
                           {email.snippet && (
-                            <p className="text-xs text-gray-500 mt-1 truncate">{email.snippet}</p>
+                            <p className="text-xs text-gray-600 mt-1 truncate">{email.snippet}</p>
                           )}
                         </div>
                       ))
@@ -684,18 +687,18 @@ export default function AdminPage() {
                     <h3 className="text-sm font-semibold text-white mb-3">Applications ({selectedUser.applications.length})</h3>
                     <div className="space-y-2">
                       {selectedUser.applications.map((app) => (
-                        <div key={app.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <div key={app.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-white">{app.name} · {app.company}</p>
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              app.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
-                              app.status === "DENIED" ? "bg-red-500/20 text-red-400" :
-                              "bg-yellow-500/20 text-yellow-400"
+                              app.status === "APPROVED" ? "bg-emerald-500/20 text-emerald-400" :
+                              app.status === "DENIED" ? "bg-rose-500/20 text-rose-400" :
+                              "bg-amber-500/20 text-amber-400"
                             }`}>
                               {app.status}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-400 mt-1">Plan: {app.desiredPlan} · {new Date(app.createdAt).toLocaleDateString()}</p>
+                          <p className="text-xs text-gray-500 mt-1">Plan: {app.desiredPlan} · {new Date(app.createdAt).toLocaleDateString()}</p>
                         </div>
                       ))}
                     </div>
