@@ -8,26 +8,36 @@ function decodeBase64Url(data: string): string {
   return Buffer.from(base64, "base64").toString("utf-8");
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function extractBody(payload: any): string {
   if (payload.body?.data) {
+    const mime = (payload.mimeType || "").toLowerCase();
+    if (mime === "text/html") return decodeBase64Url(payload.body.data);
+    if (mime === "text/plain") return `<pre style="white-space:pre-wrap;font-family:inherit;margin:0">${escapeHtml(decodeBase64Url(payload.body.data))}</pre>`;
     return decodeBase64Url(payload.body.data);
   }
   const parts = payload.parts || [];
   let htmlBody = "";
+  let plainBody = "";
   for (const part of parts) {
     const mime = (part.mimeType || "").toLowerCase();
-    if (mime === "text/plain" && part.body?.data) {
-      return decodeBase64Url(part.body.data);
-    }
     if (mime === "text/html" && part.body?.data) {
       htmlBody = decodeBase64Url(part.body.data);
     }
+    if (mime === "text/plain" && part.body?.data) {
+      plainBody = decodeBase64Url(part.body.data);
+    }
     if (mime.startsWith("multipart/") && part.parts) {
       const nested = extractBody(part);
-      if (nested) return nested;
+      if (nested && !htmlBody) htmlBody = nested;
     }
   }
-  return htmlBody;
+  if (htmlBody) return htmlBody;
+  if (plainBody) return `<pre style="white-space:pre-wrap;font-family:inherit;margin:0">${escapeHtml(plainBody)}</pre>`;
+  return "";
 }
 
 export async function GET() {
@@ -51,6 +61,7 @@ export async function GET() {
         const detail = await gmail.users.messages.get({
           userId: "me",
           id: msg.id!,
+          format: "full",
         });
 
         const headers = detail.data.payload?.headers || [];
