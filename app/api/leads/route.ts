@@ -156,22 +156,37 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-
-    if (!id) {
-      return NextResponse.json({ error: "Lead ID is required" }, { status: 400 });
+    // Support bulk delete via JSON body { ids: string[] }
+    let ids: string[] = [];
+    try {
+      const body = await req.json();
+      if (Array.isArray(body.ids) && body.ids.length > 0) {
+        ids = body.ids;
+      }
+    } catch {
+      // Not JSON — fall back to query param
     }
 
-    const existing = await prisma.lead.findUnique({ where: { id } });
-    if (!existing || existing.userId !== userId) {
-      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    if (ids.length === 0) {
+      const { searchParams } = new URL(req.url);
+      const id = searchParams.get("id");
+      if (!id) {
+        return NextResponse.json({ error: "Lead ID is required" }, { status: 400 });
+      }
+      ids = [id];
     }
 
-    await prisma.lead.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
+    // Verify ownership of all leads before deleting
+    const leads = await prisma.lead.findMany({ where: { id: { in: ids } } });
+    const owned = leads.filter((l: { userId: string }) => l.userId === userId);
+    if (owned.length !== ids.length) {
+      return NextResponse.json({ error: "One or more leads not found" }, { status: 404 });
+    }
+
+    await prisma.lead.deleteMany({ where: { id: { in: ids } } });
+    return NextResponse.json({ ok: true, deleted: ids.length });
   } catch (err) {
     console.error("DELETE LEAD ERROR:", err);
-    return NextResponse.json({ error: "Failed to delete lead" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete lead(s)" }, { status: 500 });
   }
 }

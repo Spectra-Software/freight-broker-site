@@ -56,6 +56,7 @@ export default function LeadsPage() {
   const [form, setForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -163,9 +164,41 @@ export default function LeadsPage() {
     if (!confirm("Delete this lead?")) return;
     try {
       const res = await fetch(`/api/leads?id=${id}`, { method: "DELETE" });
-      if (res.ok) setLeads((prev) => prev.filter((l) => l.id !== id));
+      if (res.ok) {
+        setLeads((prev) => prev.filter((l) => l.id !== id));
+        setSelectedIds((prev) => prev.filter((x) => x !== id));
+      }
     } catch (err) {
       console.error("Delete error:", err);
+    }
+  }
+
+  async function deleteSelected() {
+    if (!selectedIds.length || !confirm(`Delete ${selectedIds.length} lead${selectedIds.length !== 1 ? "s" : ""}?`)) return;
+    try {
+      const res = await fetch("/api/leads", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      if (res.ok) {
+        setLeads((prev) => prev.filter((l) => !selectedIds.includes(l.id)));
+        setSelectedIds([]);
+      }
+    } catch (err) {
+      console.error("Bulk delete error:", err);
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.length === filtered.length && filtered.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map((l) => l.id));
     }
   }
 
@@ -302,6 +335,26 @@ export default function LeadsPage() {
         </form>
       )}
 
+      {/* Bulk actions bar */}
+      {selectedIds.length > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2.5">
+          <span className="text-sm text-rose-300 font-medium">{selectedIds.length} selected</span>
+          <button
+            onClick={deleteSelected}
+            className="flex items-center gap-2 rounded-lg bg-rose-500/20 border border-rose-500/30 px-3 py-1.5 text-sm text-rose-300 hover:bg-rose-500/30 transition"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            Delete Selected
+          </button>
+          <button
+            onClick={() => setSelectedIds([])}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Filter Tabs */}
       <div className="flex gap-2">
         {(["ALL", "COLD", "WARM", "DRAFT_CREATED", "DRAFT_SENT", "ONBOARDED", "PROSPECTS"] as const).map((s) => {
@@ -332,6 +385,14 @@ export default function LeadsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10 text-left text-xs font-medium text-gray-400">
+                <th className="px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && selectedIds.length === filtered.length}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-white/20 bg-transparent accent-indigo-500 cursor-pointer"
+                  />
+                </th>
                 <th className="px-4 py-3">Company</th>
                 <th className="px-4 py-3">Contact</th>
                 <th className="px-4 py-3">Phone</th>
@@ -348,7 +409,15 @@ export default function LeadsPage() {
                 const cfg = STATUS_CONFIG[lead.status];
                 const isOverdue = lead.callbackAt && new Date(lead.callbackAt) < new Date();
                 return (
-                  <tr key={lead.id} className="border-b border-white/5 transition hover:bg-white/5">
+                  <tr key={lead.id} className={`border-b border-white/5 transition hover:bg-white/5 ${selectedIds.includes(lead.id) ? "bg-indigo-500/[0.06]" : ""}`}>
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(lead.id)}
+                        onChange={() => toggleSelect(lead.id)}
+                        className="h-4 w-4 rounded border-white/20 bg-transparent accent-indigo-500 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 py-3 font-medium text-white">{lead.company}</td>
                     <td className="px-4 py-3 text-gray-300">{lead.contactName || "—"}</td>
                     <td className="px-4 py-3 text-gray-300">{lead.phone || "—"}</td>
