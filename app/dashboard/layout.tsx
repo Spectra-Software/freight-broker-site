@@ -77,7 +77,7 @@ export default function DashboardLayout({
 
       <div className="relative z-10 flex w-full">
         {/* SIDEBAR */}
-        <aside className="w-64 p-6 flex flex-col justify-between border-r border-white/[0.06] bg-white/[0.02] backdrop-blur-2xl">
+        <aside className="w-64 shrink-0 p-6 flex flex-col justify-between border-r border-white/[0.06] bg-white/[0.02] backdrop-blur-2xl">
           <div>
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -122,7 +122,7 @@ export default function DashboardLayout({
         </aside>
 
         {/* MAIN AREA */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* HEADER */}
           <header className="relative z-40 flex justify-between items-center px-6 py-4 border-b border-white/[0.06] bg-[#05060A]/60 backdrop-blur-2xl">
             <motion.h2

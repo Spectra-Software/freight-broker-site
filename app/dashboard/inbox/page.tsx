@@ -655,9 +655,9 @@ export default function InboxPage() {
               </div>
 
               {/* Email body */}
-              <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-4">
                 <div
-                  className="text-sm text-gray-300 leading-relaxed prose prose-invert prose-sm max-w-none [&_a]:text-indigo-400 [&_a]:underline [&_a:hover]:text-indigo-300 [&_p]:mb-3 [&_ul]:mb-3 [&_ol]:mb-3 [&_li]:mb-1 [&_h1]:text-base [&_h2]:text-base [&_h3]:text-base [&_img]:rounded-lg [&_blockquote]:border-l-2 [&_blockquote]:border-indigo-500/30 [&_blockquote]:pl-4 [&_blockquote]:text-gray-400"
+                  className="email-body text-sm text-gray-300 leading-relaxed max-w-none overflow-hidden break-words [&_a]:text-indigo-400 [&_a]:underline [&_a:hover]:text-indigo-300 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_table]:max-w-full [&_table]:overflow-hidden [&_table]:block [&_td]:break-words [&_th]:break-words [&_div]:max-w-full [&_div]:overflow-hidden [&_span]:break-words [&_p]:mb-3 [&_p]:break-words [&_ul]:mb-3 [&_ol]:mb-3 [&_li]:mb-1 [&_h1]:text-base [&_h2]:text-base [&_h3]:text-base [&_blockquote]:border-l-2 [&_blockquote]:border-indigo-500/30 [&_blockquote]:pl-4 [&_blockquote]:text-gray-400 [&_pre]:overflow-x-auto [&_pre]:max-w-full"
                   dangerouslySetInnerHTML={{
                     __html: selectedEmail.body || (selectedEmail.snippet ? `<p>${selectedEmail.snippet}</p>` : "<p>No content available.</p>"),
                   }}

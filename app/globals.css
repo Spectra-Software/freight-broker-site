@@ -46,3 +46,31 @@ html {
   background: rgba(99, 102, 241, 0.3);
   color: white;
 }
+
+/* Email body containment — forces HTML emails to fit within their container */
+.email-body {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.email-body table {
+  table-layout: fixed;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden;
+}
+.email-body td,
+.email-body th {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.email-body img {
+  max-width: 100%;
+  height: auto;
+}
+.email-body a {
+  color: rgba(129, 140, 248, 1);
+  text-decoration: underline;
+}
+.email-body a:hover {
+  color: rgba(165, 180, 252, 1);
+}
